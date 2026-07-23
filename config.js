@@ -3,6 +3,9 @@
 //  Firebase console → your project → Project settings (gear) →
 //  "Your apps" → Web app → "SDK setup and configuration" → Config.
 //  Copy the values into the object below. These are safe to be public.
+//
+//  NOTE: use a NEW Firebase project for this app (don't reuse the
+//  World Cup one — same collection names would collide).
 // =====================================================================
 const firebaseConfig = {
   apiKey: "AIzaSyD93AfJ6VoTpTICcs7xRk_dT4TNAiGSWYE",

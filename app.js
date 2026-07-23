@@ -1,50 +1,25 @@
 /* ===================================================================
-   Embedded fixtures + starting players. Written into Firestore the
-   first time the app loads (see seedIfEmpty in load()).
+   Starting players. The full 380-game EPL fixture list lives in
+   fixtures.js (loaded before this file) and is written into Firestore
+   by seedIfNeeded() below.
    =================================================================== */
-const PLAYERS = ["Solar","DKC","Dere","Ermo","Costa","Mab"];
-const FIXTURES = [{"id":1,"stage":"GROUP","group_name":"A","matchday":1,"ordering":0,"slot_label":null,"home_team":"Mexico","away_team":"South Africa","home_flag":"🇲🇽","away_flag":"🇿🇦"},{"id":2,"stage":"GROUP","group_name":"A","matchday":1,"ordering":1,"slot_label":null,"home_team":"Korea Republic","away_team":"Czechia","home_flag":"🇰🇷","away_flag":"🇨🇿"},{"id":3,"stage":"GROUP","group_name":"B","matchday":1,"ordering":2,"slot_label":null,"home_team":"Canada","away_team":"Bosnia & Herzegovina","home_flag":"🇨🇦","away_flag":"🇧🇦"},{"id":4,"stage":"GROUP","group_name":"B","matchday":1,"ordering":3,"slot_label":null,"home_team":"Qatar","away_team":"Switzerland","home_flag":"🇶🇦","away_flag":"🇨🇭"},{"id":5,"stage":"GROUP","group_name":"C","matchday":1,"ordering":4,"slot_label":null,"home_team":"Brazil","away_team":"Morocco","home_flag":"🇧🇷","away_flag":"🇲🇦"},{"id":6,"stage":"GROUP","group_name":"C","matchday":1,"ordering":5,"slot_label":null,"home_team":"Haiti","away_team":"Scotland","home_flag":"🇭🇹","away_flag":"🏴󠁧󠁢󠁳󠁣󠁴󠁿"},{"id":7,"stage":"GROUP","group_name":"D","matchday":1,"ordering":6,"slot_label":null,"home_team":"USA","away_team":"Paraguay","home_flag":"🇺🇸","away_flag":"🇵🇾"},{"id":8,"stage":"GROUP","group_name":"D","matchday":1,"ordering":7,"slot_label":null,"home_team":"Australia","away_team":"Türkiye","home_flag":"🇦🇺","away_flag":"🇹🇷"},{"id":9,"stage":"GROUP","group_name":"E","matchday":1,"ordering":8,"slot_label":null,"home_team":"Germany","away_team":"Curaçao","home_flag":"🇩🇪","away_flag":"🇨🇼"},{"id":10,"stage":"GROUP","group_name":"E","matchday":1,"ordering":9,"slot_label":null,"home_team":"Côte d'Ivoire","away_team":"Ecuador","home_flag":"🇨🇮","away_flag":"🇪🇨"},{"id":11,"stage":"GROUP","group_name":"F","matchday":1,"ordering":10,"slot_label":null,"home_team":"Netherlands","away_team":"Japan","home_flag":"🇳🇱","away_flag":"🇯🇵"},{"id":12,"stage":"GROUP","group_name":"F","matchday":1,"ordering":11,"slot_label":null,"home_team":"Sweden","away_team":"Tunisia","home_flag":"🇸🇪","away_flag":"🇹🇳"},{"id":13,"stage":"GROUP","group_name":"G","matchday":1,"ordering":12,"slot_label":null,"home_team":"Belgium","away_team":"Egypt","home_flag":"🇧🇪","away_flag":"🇪🇬"},{"id":14,"stage":"GROUP","group_name":"G","matchday":1,"ordering":13,"slot_label":null,"home_team":"Iran","away_team":"New Zealand","home_flag":"🇮🇷","away_flag":"🇳🇿"},{"id":15,"stage":"GROUP","group_name":"H","matchday":1,"ordering":14,"slot_label":null,"home_team":"Spain","away_team":"Cabo Verde","home_flag":"🇪🇸","away_flag":"🇨🇻"},{"id":16,"stage":"GROUP","group_name":"H","matchday":1,"ordering":15,"slot_label":null,"home_team":"Saudi Arabia","away_team":"Uruguay","home_flag":"🇸🇦","away_flag":"🇺🇾"},{"id":17,"stage":"GROUP","group_name":"I","matchday":1,"ordering":16,"slot_label":null,"home_team":"France","away_team":"Senegal","home_flag":"🇫🇷","away_flag":"🇸🇳"},{"id":18,"stage":"GROUP","group_name":"I","matchday":1,"ordering":17,"slot_label":null,"home_team":"Iraq","away_team":"Norway","home_flag":"🇮🇶","away_flag":"🇳🇴"},{"id":19,"stage":"GROUP","group_name":"J","matchday":1,"ordering":18,"slot_label":null,"home_team":"Argentina","away_team":"Algeria","home_flag":"🇦🇷","away_flag":"🇩🇿"},{"id":20,"stage":"GROUP","group_name":"J","matchday":1,"ordering":19,"slot_label":null,"home_team":"Austria","away_team":"Jordan","home_flag":"🇦🇹","away_flag":"🇯🇴"},{"id":21,"stage":"GROUP","group_name":"K","matchday":1,"ordering":20,"slot_label":null,"home_team":"Portugal","away_team":"DR Congo","home_flag":"🇵🇹","away_flag":"🇨🇩"},{"id":22,"stage":"GROUP","group_name":"K","matchday":1,"ordering":21,"slot_label":null,"home_team":"Uzbekistan","away_team":"Colombia","home_flag":"🇺🇿","away_flag":"🇨🇴"},{"id":23,"stage":"GROUP","group_name":"L","matchday":1,"ordering":22,"slot_label":null,"home_team":"England","away_team":"Croatia","home_flag":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","away_flag":"🇭🇷"},{"id":24,"stage":"GROUP","group_name":"L","matchday":1,"ordering":23,"slot_label":null,"home_team":"Ghana","away_team":"Panama","home_flag":"🇬🇭","away_flag":"🇵🇦"},{"id":25,"stage":"GROUP","group_name":"A","matchday":2,"ordering":24,"slot_label":null,"home_team":"Mexico","away_team":"Korea Republic","home_flag":"🇲🇽","away_flag":"🇰🇷"},{"id":26,"stage":"GROUP","group_name":"A","matchday":2,"ordering":25,"slot_label":null,"home_team":"Czechia","away_team":"South Africa","home_flag":"🇨🇿","away_flag":"🇿🇦"},{"id":27,"stage":"GROUP","group_name":"B","matchday":2,"ordering":26,"slot_label":null,"home_team":"Canada","away_team":"Qatar","home_flag":"🇨🇦","away_flag":"🇶🇦"},{"id":28,"stage":"GROUP","group_name":"B","matchday":2,"ordering":27,"slot_label":null,"home_team":"Switzerland","away_team":"Bosnia & Herzegovina","home_flag":"🇨🇭","away_flag":"🇧🇦"},{"id":29,"stage":"GROUP","group_name":"C","matchday":2,"ordering":28,"slot_label":null,"home_team":"Brazil","away_team":"Haiti","home_flag":"🇧🇷","away_flag":"🇭🇹"},{"id":30,"stage":"GROUP","group_name":"C","matchday":2,"ordering":29,"slot_label":null,"home_team":"Scotland","away_team":"Morocco","home_flag":"🏴󠁧󠁢󠁳󠁣󠁴󠁿","away_flag":"🇲🇦"},{"id":31,"stage":"GROUP","group_name":"D","matchday":2,"ordering":30,"slot_label":null,"home_team":"USA","away_team":"Australia","home_flag":"🇺🇸","away_flag":"🇦🇺"},{"id":32,"stage":"GROUP","group_name":"D","matchday":2,"ordering":31,"slot_label":null,"home_team":"Türkiye","away_team":"Paraguay","home_flag":"🇹🇷","away_flag":"🇵🇾"},{"id":33,"stage":"GROUP","group_name":"E","matchday":2,"ordering":32,"slot_label":null,"home_team":"Germany","away_team":"Côte d'Ivoire","home_flag":"🇩🇪","away_flag":"🇨🇮"},{"id":34,"stage":"GROUP","group_name":"E","matchday":2,"ordering":33,"slot_label":null,"home_team":"Ecuador","away_team":"Curaçao","home_flag":"🇪🇨","away_flag":"🇨🇼"},{"id":35,"stage":"GROUP","group_name":"F","matchday":2,"ordering":34,"slot_label":null,"home_team":"Netherlands","away_team":"Sweden","home_flag":"🇳🇱","away_flag":"🇸🇪"},{"id":36,"stage":"GROUP","group_name":"F","matchday":2,"ordering":35,"slot_label":null,"home_team":"Tunisia","away_team":"Japan","home_flag":"🇹🇳","away_flag":"🇯🇵"},{"id":37,"stage":"GROUP","group_name":"G","matchday":2,"ordering":36,"slot_label":null,"home_team":"Belgium","away_team":"Iran","home_flag":"🇧🇪","away_flag":"🇮🇷"},{"id":38,"stage":"GROUP","group_name":"G","matchday":2,"ordering":37,"slot_label":null,"home_team":"New Zealand","away_team":"Egypt","home_flag":"🇳🇿","away_flag":"🇪🇬"},{"id":39,"stage":"GROUP","group_name":"H","matchday":2,"ordering":38,"slot_label":null,"home_team":"Spain","away_team":"Saudi Arabia","home_flag":"🇪🇸","away_flag":"🇸🇦"},{"id":40,"stage":"GROUP","group_name":"H","matchday":2,"ordering":39,"slot_label":null,"home_team":"Uruguay","away_team":"Cabo Verde","home_flag":"🇺🇾","away_flag":"🇨🇻"},{"id":41,"stage":"GROUP","group_name":"I","matchday":2,"ordering":40,"slot_label":null,"home_team":"France","away_team":"Iraq","home_flag":"🇫🇷","away_flag":"🇮🇶"},{"id":42,"stage":"GROUP","group_name":"I","matchday":2,"ordering":41,"slot_label":null,"home_team":"Norway","away_team":"Senegal","home_flag":"🇳🇴","away_flag":"🇸🇳"},{"id":43,"stage":"GROUP","group_name":"J","matchday":2,"ordering":42,"slot_label":null,"home_team":"Argentina","away_team":"Austria","home_flag":"🇦🇷","away_flag":"🇦🇹"},{"id":44,"stage":"GROUP","group_name":"J","matchday":2,"ordering":43,"slot_label":null,"home_team":"Jordan","away_team":"Algeria","home_flag":"🇯🇴","away_flag":"🇩🇿"},{"id":45,"stage":"GROUP","group_name":"K","matchday":2,"ordering":44,"slot_label":null,"home_team":"Portugal","away_team":"Uzbekistan","home_flag":"🇵🇹","away_flag":"🇺🇿"},{"id":46,"stage":"GROUP","group_name":"K","matchday":2,"ordering":45,"slot_label":null,"home_team":"Colombia","away_team":"DR Congo","home_flag":"🇨🇴","away_flag":"🇨🇩"},{"id":47,"stage":"GROUP","group_name":"L","matchday":2,"ordering":46,"slot_label":null,"home_team":"England","away_team":"Ghana","home_flag":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","away_flag":"🇬🇭"},{"id":48,"stage":"GROUP","group_name":"L","matchday":2,"ordering":47,"slot_label":null,"home_team":"Panama","away_team":"Croatia","home_flag":"🇵🇦","away_flag":"🇭🇷"},{"id":49,"stage":"GROUP","group_name":"A","matchday":3,"ordering":48,"slot_label":null,"home_team":"Mexico","away_team":"Czechia","home_flag":"🇲🇽","away_flag":"🇨🇿"},{"id":50,"stage":"GROUP","group_name":"A","matchday":3,"ordering":49,"slot_label":null,"home_team":"South Africa","away_team":"Korea Republic","home_flag":"🇿🇦","away_flag":"🇰🇷"},{"id":51,"stage":"GROUP","group_name":"B","matchday":3,"ordering":50,"slot_label":null,"home_team":"Canada","away_team":"Switzerland","home_flag":"🇨🇦","away_flag":"🇨🇭"},{"id":52,"stage":"GROUP","group_name":"B","matchday":3,"ordering":51,"slot_label":null,"home_team":"Bosnia & Herzegovina","away_team":"Qatar","home_flag":"🇧🇦","away_flag":"🇶🇦"},{"id":53,"stage":"GROUP","group_name":"C","matchday":3,"ordering":52,"slot_label":null,"home_team":"Brazil","away_team":"Scotland","home_flag":"🇧🇷","away_flag":"🏴󠁧󠁢󠁳󠁣󠁴󠁿"},{"id":54,"stage":"GROUP","group_name":"C","matchday":3,"ordering":53,"slot_label":null,"home_team":"Morocco","away_team":"Haiti","home_flag":"🇲🇦","away_flag":"🇭🇹"},{"id":55,"stage":"GROUP","group_name":"D","matchday":3,"ordering":54,"slot_label":null,"home_team":"USA","away_team":"Türkiye","home_flag":"🇺🇸","away_flag":"🇹🇷"},{"id":56,"stage":"GROUP","group_name":"D","matchday":3,"ordering":55,"slot_label":null,"home_team":"Paraguay","away_team":"Australia","home_flag":"🇵🇾","away_flag":"🇦🇺"},{"id":57,"stage":"GROUP","group_name":"E","matchday":3,"ordering":56,"slot_label":null,"home_team":"Germany","away_team":"Ecuador","home_flag":"🇩🇪","away_flag":"🇪🇨"},{"id":58,"stage":"GROUP","group_name":"E","matchday":3,"ordering":57,"slot_label":null,"home_team":"Curaçao","away_team":"Côte d'Ivoire","home_flag":"🇨🇼","away_flag":"🇨🇮"},{"id":59,"stage":"GROUP","group_name":"F","matchday":3,"ordering":58,"slot_label":null,"home_team":"Netherlands","away_team":"Tunisia","home_flag":"🇳🇱","away_flag":"🇹🇳"},{"id":60,"stage":"GROUP","group_name":"F","matchday":3,"ordering":59,"slot_label":null,"home_team":"Japan","away_team":"Sweden","home_flag":"🇯🇵","away_flag":"🇸🇪"},{"id":61,"stage":"GROUP","group_name":"G","matchday":3,"ordering":60,"slot_label":null,"home_team":"Belgium","away_team":"New Zealand","home_flag":"🇧🇪","away_flag":"🇳🇿"},{"id":62,"stage":"GROUP","group_name":"G","matchday":3,"ordering":61,"slot_label":null,"home_team":"Egypt","away_team":"Iran","home_flag":"🇪🇬","away_flag":"🇮🇷"},{"id":63,"stage":"GROUP","group_name":"H","matchday":3,"ordering":62,"slot_label":null,"home_team":"Spain","away_team":"Uruguay","home_flag":"🇪🇸","away_flag":"🇺🇾"},{"id":64,"stage":"GROUP","group_name":"H","matchday":3,"ordering":63,"slot_label":null,"home_team":"Cabo Verde","away_team":"Saudi Arabia","home_flag":"🇨🇻","away_flag":"🇸🇦"},{"id":65,"stage":"GROUP","group_name":"I","matchday":3,"ordering":64,"slot_label":null,"home_team":"France","away_team":"Norway","home_flag":"🇫🇷","away_flag":"🇳🇴"},{"id":66,"stage":"GROUP","group_name":"I","matchday":3,"ordering":65,"slot_label":null,"home_team":"Senegal","away_team":"Iraq","home_flag":"🇸🇳","away_flag":"🇮🇶"},{"id":67,"stage":"GROUP","group_name":"J","matchday":3,"ordering":66,"slot_label":null,"home_team":"Argentina","away_team":"Jordan","home_flag":"🇦🇷","away_flag":"🇯🇴"},{"id":68,"stage":"GROUP","group_name":"J","matchday":3,"ordering":67,"slot_label":null,"home_team":"Algeria","away_team":"Austria","home_flag":"🇩🇿","away_flag":"🇦🇹"},{"id":69,"stage":"GROUP","group_name":"K","matchday":3,"ordering":68,"slot_label":null,"home_team":"Portugal","away_team":"Colombia","home_flag":"🇵🇹","away_flag":"🇨🇴"},{"id":70,"stage":"GROUP","group_name":"K","matchday":3,"ordering":69,"slot_label":null,"home_team":"DR Congo","away_team":"Uzbekistan","home_flag":"🇨🇩","away_flag":"🇺🇿"},{"id":71,"stage":"GROUP","group_name":"L","matchday":3,"ordering":70,"slot_label":null,"home_team":"England","away_team":"Panama","home_flag":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","away_flag":"🇵🇦"},{"id":72,"stage":"GROUP","group_name":"L","matchday":3,"ordering":71,"slot_label":null,"home_team":"Croatia","away_team":"Ghana","home_flag":"🇭🇷","away_flag":"🇬🇭"},{"id":73,"stage":"R32","group_name":null,"matchday":null,"ordering":72,"slot_label":"Round of 32 — Match 1","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":74,"stage":"R32","group_name":null,"matchday":null,"ordering":73,"slot_label":"Round of 32 — Match 2","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":75,"stage":"R32","group_name":null,"matchday":null,"ordering":74,"slot_label":"Round of 32 — Match 3","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":76,"stage":"R32","group_name":null,"matchday":null,"ordering":75,"slot_label":"Round of 32 — Match 4","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":77,"stage":"R32","group_name":null,"matchday":null,"ordering":76,"slot_label":"Round of 32 — Match 5","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":78,"stage":"R32","group_name":null,"matchday":null,"ordering":77,"slot_label":"Round of 32 — Match 6","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":79,"stage":"R32","group_name":null,"matchday":null,"ordering":78,"slot_label":"Round of 32 — Match 7","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":80,"stage":"R32","group_name":null,"matchday":null,"ordering":79,"slot_label":"Round of 32 — Match 8","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":81,"stage":"R32","group_name":null,"matchday":null,"ordering":80,"slot_label":"Round of 32 — Match 9","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":82,"stage":"R32","group_name":null,"matchday":null,"ordering":81,"slot_label":"Round of 32 — Match 10","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":83,"stage":"R32","group_name":null,"matchday":null,"ordering":82,"slot_label":"Round of 32 — Match 11","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":84,"stage":"R32","group_name":null,"matchday":null,"ordering":83,"slot_label":"Round of 32 — Match 12","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":85,"stage":"R32","group_name":null,"matchday":null,"ordering":84,"slot_label":"Round of 32 — Match 13","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":86,"stage":"R32","group_name":null,"matchday":null,"ordering":85,"slot_label":"Round of 32 — Match 14","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":87,"stage":"R32","group_name":null,"matchday":null,"ordering":86,"slot_label":"Round of 32 — Match 15","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":88,"stage":"R32","group_name":null,"matchday":null,"ordering":87,"slot_label":"Round of 32 — Match 16","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":89,"stage":"R16","group_name":null,"matchday":null,"ordering":88,"slot_label":"Round of 16 — Match 1","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":90,"stage":"R16","group_name":null,"matchday":null,"ordering":89,"slot_label":"Round of 16 — Match 2","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":91,"stage":"R16","group_name":null,"matchday":null,"ordering":90,"slot_label":"Round of 16 — Match 3","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":92,"stage":"R16","group_name":null,"matchday":null,"ordering":91,"slot_label":"Round of 16 — Match 4","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":93,"stage":"R16","group_name":null,"matchday":null,"ordering":92,"slot_label":"Round of 16 — Match 5","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":94,"stage":"R16","group_name":null,"matchday":null,"ordering":93,"slot_label":"Round of 16 — Match 6","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":95,"stage":"R16","group_name":null,"matchday":null,"ordering":94,"slot_label":"Round of 16 — Match 7","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":96,"stage":"R16","group_name":null,"matchday":null,"ordering":95,"slot_label":"Round of 16 — Match 8","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":97,"stage":"QF","group_name":null,"matchday":null,"ordering":96,"slot_label":"Quarter-final — Match 1","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":98,"stage":"QF","group_name":null,"matchday":null,"ordering":97,"slot_label":"Quarter-final — Match 2","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":99,"stage":"QF","group_name":null,"matchday":null,"ordering":98,"slot_label":"Quarter-final — Match 3","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":100,"stage":"QF","group_name":null,"matchday":null,"ordering":99,"slot_label":"Quarter-final — Match 4","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":101,"stage":"SF","group_name":null,"matchday":null,"ordering":100,"slot_label":"Semi-final — Match 1","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":102,"stage":"SF","group_name":null,"matchday":null,"ordering":101,"slot_label":"Semi-final — Match 2","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":103,"stage":"THIRD","group_name":null,"matchday":null,"ordering":102,"slot_label":"Third-place play-off","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""},{"id":104,"stage":"FINAL","group_name":null,"matchday":null,"ordering":103,"slot_label":"Final","home_team":"TBD","away_team":"TBD","home_flag":"","away_flag":""}];
+const PLAYERS = ["Solar", "DKC", "Dere", "Ermo", "Costa", "Mab"];
 
 /* =====================================================================
-   World Cup 2026 Predictor — app logic (plain JavaScript)
+   EPL Predictor — app logic (plain JavaScript)
 
-   Three screens (Fixtures / Leaderboard / Manage) all live in this one
+   Screens (Fixtures / Table / Opta Stats / Manage) all live in this one
    file. Data is stored in Firebase (Firestore) so every phone shares the
    same leaderboard. No build step — just files a browser opens.
    ===================================================================== */
 
-/* ---- scoring rules (change these if you want) ----
-   Default game:  correct result +5, exact score +10.
-   Big-6 game:    correct result +15, exact score +25.  (any game featuring
-                  one of the BIG6_TEAMS below counts as a Big-6 game.)
-   Per-game override: you can set custom correct/exact points for any single
-   game in Manage → Results. An override always wins over the values below. */
-const POINTS_DEFAULT = { EXACT: 10, RESULT: 5, MISS: 0 };
-const POINTS_BIG6    = { EXACT: 25, RESULT: 15, MISS: 0 };
+/* ---- scoring rules (change these if you want) ---- */
+const POINTS = { EXACT: 20, RESULT: 15, MISS: 0 };
 
-/* Teams that make a game a "Big-6" game. A few common spellings are included
-   so it still matches whether a team is entered as "Man City" or "Manchester
-   City", etc. Add or remove names here to change which teams count. */
-const BIG6_TEAMS = [
-  "Arsenal",
-  "Manchester United", "Man United", "Man Utd",
-  "Manchester City", "Man City",
-  "Chelsea",
-  "Liverpool",
-  "Tottenham", "Tottenham Hotspur", "Spurs",
-];
-function involvesBig6(m) {
-  return BIG6_TEAMS.includes(m.home_team) || BIG6_TEAMS.includes(m.away_team);
-}
-
-/* Effective points for a game: a manual override wins; otherwise Big-6 games
-   use POINTS_BIG6 and every other game uses POINTS_DEFAULT. */
-function pointsFor(m) {
-  const base = involvesBig6(m) ? POINTS_BIG6 : POINTS_DEFAULT;
-  const exact  = (m && m.pts_exact  != null) ? m.pts_exact  : base.EXACT;
-  const result = (m && m.pts_result != null) ? m.pts_result : base.RESULT;
-  return { EXACT: exact, RESULT: result, MISS: 0 };
-}
+/* ---- competition (EPL only) ---- */
+const COMPS = {
+  EPL: { name: "Premier League", short: "EPL", logo: "🦁", weekWord: "Week" },
+};
 
 /* ---- manage PIN ----
    Change the number below to update the PIN. */
@@ -53,9 +28,8 @@ let manageUnlocked = false;
 
 /* ---- frozen games ----
    Match IDs listed here are FROZEN: locked from predictions and NOT counted
-   in the leaderboard. (Group-stage MD1 games 1–12 come before Belgium v Egypt.)
-   Edit this list to freeze/unfreeze different games. */
-const EXCLUDED_MATCH_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+   in the leaderboard. Empty for now — add IDs to freeze games. */
+const EXCLUDED_MATCH_IDS = [];
 function isExcluded(m) {
   return EXCLUDED_MATCH_IDS.includes(m.id);
 }
@@ -74,6 +48,45 @@ function initials(name) {
   return String(name).trim().slice(0, 2).toUpperCase();
 }
 
+/* ---- player jerseys (home kits) ----
+   body / sleeve / trim colors per player. Add new players here;
+   anyone not listed gets a generic jersey in their avatar color. */
+const KITS = {
+  chelsea:       { body: "#034694", sleeve: "#034694", trim: "#ffffff" },
+  manutd:        { body: "#DA291C", sleeve: "#DA291C", trim: "#ffffff" },
+  arsenal:       { body: "#EF0107", sleeve: "#ffffff", trim: "#ffffff" },
+  arsenal_away:  { body: "#FFDD00", sleeve: "#FFDD00", trim: "#023474" }, // yellow / navy
+  manutd_away:   { body: "#f8f8f8", sleeve: "#f8f8f8", trim: "#DA291C" }, // white / red
+  manutd_away2:  { body: "#1a1a1a", sleeve: "#1a1a1a", trim: "#DA291C" }, // black / red
+};
+const PLAYER_KITS = {
+  costa: KITS.chelsea,
+  dere: KITS.manutd_away2,
+  dkc: KITS.arsenal,
+  ermo: KITS.arsenal_away,
+  ermi: KITS.arsenal_away,
+  mab: KITS.manutd_away,
+  solar: KITS.manutd,
+};
+function kitFor(name) {
+  const k = PLAYER_KITS[String(name).trim().toLowerCase()];
+  if (k) return k;
+  const c = avatarColor(name);
+  return { body: c, sleeve: c, trim: "#ffffff" };
+}
+function jerseyHTML(name) {
+  const k = kitFor(name);
+  return `<svg class="jersey" viewBox="0 0 64 64" aria-hidden="true">
+    <path d="M42 7 L56 13 L62 27 L51 31 L48 24 L48 56 L16 56 L16 24 L13 31 L2 27 L8 13 L22 7 C24 13 40 13 42 7 Z"
+      fill="${k.body}" stroke="#1e293b" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M8 13 L2 27 L13 31 L17 18 Z" fill="${k.sleeve}" stroke="#1e293b" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M56 13 L62 27 L51 31 L47 18 Z" fill="${k.sleeve}" stroke="#1e293b" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M22 7 C24 13 40 13 42 7 L38 5.5 C35.5 9.5 28.5 9.5 26 5.5 Z" fill="${k.trim}" stroke="#1e293b" stroke-width="2" stroke-linejoin="round"/>
+    <text x="32" y="42" text-anchor="middle" font-size="14" font-weight="800"
+      fill="${k.trim}" stroke="none">${esc(initials(name))}</text>
+  </svg>`;
+}
+
 /* ---- connect to the database ---- */
 const keysMissing =
   !firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey.includes("YOUR_") ||
@@ -87,22 +100,23 @@ if (!keysMissing) {
 
 /* ---- app state ---- */
 let players = [];      // [{id, name}]
-let matches = [];      // all 104 fixtures
+let matches = [];      // every game added so far
 let predictions = [];  // every prediction by everyone
+let openWeeks = new Set(); // "comp|week" keys the admin has opened for picks
 let tab = "fixtures";
 let manageTab = "results";
-let myId = localStorage.getItem("wc_player_id");
-let myName = localStorage.getItem("wc_player_name");
+let myId = localStorage.getItem("plucl_player_id");
+let myName = localStorage.getItem("plucl_player_name");
 
 const screen = document.getElementById("screen");
 
 /* ---- small helpers ---- */
 const sign = (h, a) => (h > a ? 1 : h < a ? -1 : 0);
 
-function scorePrediction(ph, pa, ah, aa, pts) {
-  if (ph === ah && pa === aa) return { pts: pts.EXACT, kind: "exact" };
-  if (sign(ph, pa) === sign(ah, aa)) return { pts: pts.RESULT, kind: "result" };
-  return { pts: pts.MISS, kind: "miss" };
+function scorePrediction(ph, pa, ah, aa) {
+  if (ph === ah && pa === aa) return { pts: POINTS.EXACT, kind: "exact" };
+  if (sign(ph, pa) === sign(ah, aa)) return { pts: POINTS.RESULT, kind: "result" };
+  return { pts: POINTS.MISS, kind: "miss" };
 }
 
 function esc(s) {
@@ -111,9 +125,72 @@ function esc(s) {
   );
 }
 
-const STAGE_TITLES = {
-  GROUP: "Group Stage", R32: "Round of 32", R16: "Round of 16",
-  QF: "Quarter-finals", SF: "Semi-finals", THIRD: "Third-place play-off", FINAL: "Final",
+function compOf(m) {
+  return COMPS[m.comp] || COMPS.EPL;
+}
+
+// "Premier League · Week 1"
+function weekTitle(m) {
+  const c = compOf(m);
+  return `${c.name} · ${c.weekWord} ${m.week}`;
+}
+
+// short label for a single row, e.g. "EPL · Wk 1"
+function shortLabel(m) {
+  const c = compOf(m);
+  return `${c.short} · ${c.weekWord === "Week" ? "Wk" : "MD"} ${m.week}`;
+}
+
+/* ---- group any list of matches into comp+week sections, in fixture order ---- */
+function sectionsOf(list) {
+  const map = new Map();
+  for (const m of list) {
+    const key = `${m.comp}|${m.week}`;
+    if (!map.has(key)) map.set(key, { title: weekTitle(m), comp: m.comp, week: m.week, min: m.ordering, list: [] });
+    const s = map.get(key);
+    s.list.push(m);
+    if (m.ordering < s.min) s.min = m.ordering;
+  }
+  // sort by week number so a game moved to another week files in correctly
+  return [...map.values()].sort((a, b) => a.week - b.week || a.min - b.min);
+}
+
+/* ---- week filter (Fixtures + Manage) ----
+   The season is 38 weeks × 10 games, so screens show one week at a
+   time. Default: the first week that still has an unfinished game. */
+let weekFilter = null; // null = auto, "all" = everything, or a week number
+
+function currentWeek() {
+  const open = matches.filter((m) => !m.finished);
+  if (open.length === 0) return matches.length ? Math.max(...matches.map((m) => m.week)) : 1;
+  return Math.min(...open.map((m) => m.week));
+}
+
+function activeWeek() {
+  return weekFilter === null ? currentWeek() : weekFilter;
+}
+
+function visibleMatches() {
+  const w = activeWeek();
+  return w === "all" ? matches : matches.filter((m) => m.week === w);
+}
+
+function weekSelectHTML() {
+  const w = activeWeek();
+  const maxWeek = matches.length ? Math.max(...matches.map((m) => m.week)) : 38;
+  let opts = `<option value="all" ${w === "all" ? "selected" : ""}>All weeks</option>`;
+  for (let n = 1; n <= maxWeek; n++) {
+    opts += `<option value="${n}" ${w === n ? "selected" : ""}>Week ${n}</option>`;
+  }
+  return `<div class="card weekbar">
+    <span class="weekbar-label">Gameweek</span>
+    <select class="select" style="margin:0;flex:1" onchange="setWeek(this.value)">${opts}</select>
+  </div>`;
+}
+
+window.setWeek = (v) => {
+  weekFilter = v === "all" ? "all" : Math.max(1, Math.trunc(Number(v)) || 1);
+  render();
 };
 
 /* ---- prediction deadline ----
@@ -124,6 +201,15 @@ function isClosed(m) {
   return !!m.kickoff && new Date(m.kickoff).getTime() <= Date.now();
 }
 
+/* ---- week activation ----
+   Every week starts CLOSED for predictions, even when its games are
+   visible. The admin opens a week from Manage → Deadlines; the list of
+   open weeks lives in Firestore (meta/openWeeks) so everyone sees it. */
+const weekKey = (comp, week) => `${comp}|${week}`;
+function isWeekOpen(m) {
+  return openWeeks.has(weekKey(m.comp, m.week));
+}
+
 // ISO (UTC) -> value for a <input type="datetime-local"> in the viewer's local time
 function toLocalInput(iso) {
   if (!iso) return "";
@@ -132,7 +218,7 @@ function toLocalInput(iso) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-// short, friendly kickoff label, e.g. "Jun 13, 12:00 PM"
+// short, friendly kickoff label, e.g. "Aug 21, 8:00 PM"
 function kickoffLabel(iso) {
   if (!iso) return "";
   return new Date(iso).toLocaleString([], {
@@ -147,36 +233,64 @@ function slug(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "player";
 }
 
-async function seedIfEmpty() {
-  const snap = await dbf.collection("matches").limit(1).get();
-  if (!snap.empty) return; // matches exist — never touch them
-  // Only reaches here if the collection is truly empty (first ever run)
-  const batch = dbf.batch();
-  for (const f of FIXTURES) {
-    const ref = dbf.collection("matches").doc(String(f.id));
-    // set() with merge:true means it ONLY writes fields that don't exist yet.
-    // If a document already has home_score set, it will NOT be overwritten.
-    batch.set(ref, { ...f, home_score: null, away_score: null, finished: false }, { merge: true });
+/* Version-based seeding. Bump SEED_VERSION when the FIXTURES list in
+   fixtures.js changes in a big way: the app then wipes old matches
+   (and old predictions, which point at the old game IDs) and writes
+   the fresh list. Results/edits you make in Manage are per-match-doc
+   updates and are untouched between version bumps. */
+const SEED_VERSION = 2; // v2 = UCL removed, all 380 EPL games added
+
+async function seedIfNeeded() {
+  const metaRef = dbf.collection("meta").doc("seed");
+  const meta = await metaRef.get();
+  if (meta.exists && (meta.data().version || 0) >= SEED_VERSION) return;
+
+  // wipe old matches + predictions (IDs change between versions)
+  const [oldM, oldP] = await Promise.all([
+    dbf.collection("matches").get(),
+    dbf.collection("predictions").get(),
+  ]);
+  const stale = [...oldM.docs, ...oldP.docs];
+  while (stale.length) {
+    const b = dbf.batch();
+    for (const d of stale.splice(0, 400)) b.delete(d.ref);
+    await b.commit();
   }
+
+  // write the full fixture list in chunks (Firestore batch limit is 500)
+  const queue = [...FIXTURES];
+  while (queue.length) {
+    const b = dbf.batch();
+    for (const f of queue.splice(0, 400)) {
+      b.set(dbf.collection("matches").doc(String(f.id)),
+        { ...f, home_score: null, away_score: null, finished: false });
+    }
+    await b.commit();
+  }
+
+  const b = dbf.batch();
   for (const name of PLAYERS) {
-    batch.set(dbf.collection("players").doc(slug(name)), { name }, { merge: true });
+    b.set(dbf.collection("players").doc(slug(name)), { name }, { merge: true });
   }
-  await batch.commit();
+  b.set(metaRef, { version: SEED_VERSION });
+  await b.commit();
 }
 
 async function load() {
   if (!dbf) return;
-  await seedIfEmpty();
-  const [pSnap, mSnap, prSnap] = await Promise.all([
+  await seedIfNeeded();
+  const [pSnap, mSnap, prSnap, owSnap] = await Promise.all([
     dbf.collection("players").get(),
     dbf.collection("matches").get(),
     dbf.collection("predictions").get(),
+    dbf.collection("meta").doc("openWeeks").get(),
   ]);
   players = pSnap.docs.map((d) => ({ id: d.id, name: d.data().name }));
   players.sort((a, b) => a.name.localeCompare(b.name));
   matches = mSnap.docs.map((d) => d.data());
   matches.sort((a, b) => a.ordering - b.ordering);
   predictions = prSnap.docs.map((d) => d.data());
+  openWeeks = new Set(owSnap.exists ? owSnap.data().keys || [] : []);
 }
 
 /* =====================================================================
@@ -184,8 +298,11 @@ async function load() {
    ===================================================================== */
 function render() {
   if (keysMissing) { renderSetup(); return; }
+  // the Table screen gets a black background; everything else stays white
+  screen.classList.toggle("dark", tab === "leaderboard");
   if (tab === "fixtures") renderFixtures();
   else if (tab === "leaderboard") renderLeaderboard();
+  else if (tab === "stats") renderStats();
   else if (tab === "manage") {
     if (!manageUnlocked) renderPinGate();
     else renderManage();
@@ -231,7 +348,8 @@ function matchRowHTML(m) {
   const mine = myPredFor(m.id);
   const closed = isClosed(m); // past its kickoff/deadline
   const frozen = isExcluded(m); // not counted in the leaderboard
-  const locked = m.finished || isTbd || !!mine || closed || frozen;
+  const notOpen = !isWeekOpen(m); // week not activated by the admin yet
+  const locked = m.finished || isTbd || !!mine || closed || frozen || notOpen;
 
   const result = m.finished
     ? `<div class="result"><div>${m.home_score}</div><div>${m.away_score}</div></div>`
@@ -246,7 +364,7 @@ function matchRowHTML(m) {
   if (frozen) {
     foot = `<span class="locked">frozen · not counted</span>`;
   } else if (m.finished && mine) {
-    const s = scorePrediction(mine.home_score, mine.away_score, m.home_score, m.away_score, pointsFor(m));
+    const s = scorePrediction(mine.home_score, mine.away_score, m.home_score, m.away_score);
     const cls = s.kind === "exact" ? "pts-exact" : s.kind === "result" ? "pts-result" : "pts-miss";
     const label = s.kind === "exact" ? "Exact" : s.kind === "result" ? "Result" : "Miss";
     foot = `<span class="${cls}">${label} +${s.pts}</span>`;
@@ -258,6 +376,8 @@ function matchRowHTML(m) {
     foot = `<span class="locked">locked 🔒</span>`;
   } else if (closed) {
     foot = `<span class="locked">picks closed 🔒</span>`;
+  } else if (notOpen) {
+    foot = `<span class="locked">predictions not open yet 🔒</span>`;
   } else {
     foot = `<button class="link" onclick="savePick(${m.id})">lock in pick</button>`;
   }
@@ -267,9 +387,9 @@ function matchRowHTML(m) {
     ? ` · ${closed ? "closed" : "closes"} ${kickoffLabel(m.kickoff)}`
     : "";
 
-  const left = (m.group_name
-    ? `Group ${m.group_name} · MD${m.matchday}`
-    : esc(m.slot_label || STAGE_TITLES[m.stage])) + kickoff;
+  const pill = `<span class="pill epl">${compOf(m).short}</span>`;
+  const left = pill + " " + shortLabel(m) +
+    (m.slot_label ? ` · ${esc(m.slot_label)}` : "") + kickoff;
 
   return `<div class="card${frozen ? " frozen" : ""}">
     <div class="match">
@@ -289,35 +409,24 @@ function matchRowHTML(m) {
 
 function renderFixtures() {
   document.getElementById("header-stage").textContent = "FIXTURES";
-  const sections = [];
+  const sections = sectionsOf(visibleMatches());
 
-  // group stage by matchday
-  for (const md of [1, 2, 3]) {
-    const sub = matches.filter((m) => m.stage === "GROUP" && m.matchday === md);
-    if (sub.length) sections.push({ title: `Group Stage · Matchday ${md}`, list: sub });
-  }
-  // knockout rounds
-  for (const stage of ["R32", "R16", "QF", "SF", "THIRD", "FINAL"]) {
-    const sub = matches.filter((m) => m.stage === stage);
-    if (sub.length) sections.push({ title: STAGE_TITLES[stage], list: sub });
-  }
+  const body = sections.length
+    ? sections
+        .map(
+          (s) =>
+            `<div class="section-title">${s.title}</div>` +
+            s.list.map(matchRowHTML).join("")
+        )
+        .join("")
+    : `<p class="note">No games in this week — pick another week, or add games in Manage → Games.</p>`;
 
-  const body = sections
-    .map(
-      (s) =>
-        `<div class="section-title">${s.title}</div>` +
-        s.list.map(matchRowHTML).join("")
-    )
-    .join("");
-
-  screen.innerHTML = playerBarHTML() + body;
+  screen.innerHTML = playerBarHTML() + weekSelectHTML() + body;
 }
 
 /* ---------------------------------------------------------------------
-   LEADERBOARD
+   LEADERBOARD — Exact·Result / Games / Total columns
    ------------------------------------------------------------------- */
-const KO_STAGES = new Set(["R32", "R16", "QF", "SF", "THIRD", "FINAL"]);
-
 function buildLeaderboard() {
   const finished = new Map(
     matches
@@ -327,8 +436,7 @@ function buildLeaderboard() {
   const rows = new Map();
   for (const p of players) rows.set(p.id, {
     name: p.name,
-    groupPts: 0, koPts: 0, points: 0,
-    exact: 0, results: 0, scored: 0,
+    points: 0, exact: 0, results: 0, scored: 0,
   });
 
   for (const pr of predictions) {
@@ -336,10 +444,8 @@ function buildLeaderboard() {
     const row = rows.get(pr.player_id);
     if (!m || !row) continue;
     row.scored++;
-    const s = scorePrediction(pr.home_score, pr.away_score, m.home_score, m.away_score, pointsFor(m));
+    const s = scorePrediction(pr.home_score, pr.away_score, m.home_score, m.away_score);
     row.points += s.pts;
-    if (KO_STAGES.has(m.stage)) row.koPts += s.pts;
-    else row.groupPts += s.pts;
     if (s.kind === "exact") row.exact++;
     else if (s.kind === "result") row.results++;
   }
@@ -349,51 +455,111 @@ function buildLeaderboard() {
 }
 
 function renderLeaderboard() {
-  document.getElementById("header-stage").textContent = "LEADERBOARD";
+  document.getElementById("header-stage").textContent = "TABLE";
   const rows = buildLeaderboard();
-  const finished = matches.filter((m) => m.finished && !isExcluded(m)).length;
-  const playable = matches.filter((m) => m.home_team !== "TBD" && m.away_team !== "TBD" && !isExcluded(m)).length;
+  const n = rows.length;
   const medals = ["🥇", "🥈", "🥉"];
 
-  const list =
+  const rowHTML = (r, i) => {
+    const leader = i === 0;
+    const last = n >= 4 && i === n - 1;
+    const badge = i < medals.length ? medals[i] : String(i + 1);
+    return `<div class="card lb-row ${leader ? "leader" : ""} ${last ? "last" : ""}">
+      <div class="lb-rank ${i >= medals.length ? "num" : ""}" title="Rank ${i + 1}">${badge}</div>
+      ${jerseyHTML(r.name)}
+      <div class="lb-main">
+        <span class="lb-name">${esc(r.name)}</span>
+        <span class="lb-sub">${r.exact} exact · ${r.results} results</span>
+      </div>
+      ${leader ? `<span class="lb-deco d1">🎉</span><span class="lb-deco d2">🎊</span><span class="lb-deco d3">✨</span><span class="lb-deco d4">🎈</span><span class="lb-king">👑</span>` : ""}
+      ${last ? `<span class="lb-clown">🤡</span>` : ""}
+      <div class="lb-total"><span>TOT</span>${r.points}</div>
+    </div>`;
+  };
+
+  let body;
+  if (n === 0) {
+    body = `<p class="note">No players yet. Add yourself on the Fixtures tab.</p>`;
+  } else {
+    // tiers: 1 = VIP/PRO · 2-3 = TOP · middle = MID TABLE · last = QIX
+    const parts = [];
+    parts.push(`<div class="lb-tier">👑 VIP / PRO</div>`, rowHTML(rows[0], 0));
+    if (n > 1) {
+      parts.push(`<div class="lb-tier">TOP</div>`);
+      rows.slice(1, 3).forEach((r, k) => parts.push(rowHTML(r, k + 1)));
+    }
+    const midEnd = n >= 4 ? n - 1 : n;
+    if (midEnd > 3) {
+      parts.push(`<div class="lb-tier">MID TABLE</div>`);
+      rows.slice(3, midEnd).forEach((r, k) => parts.push(rowHTML(r, k + 3)));
+    }
+    if (n >= 4) {
+      parts.push(`<div class="lb-tier">QIX</div>`, rowHTML(rows[n - 1], n - 1));
+    }
+    body = parts.join("");
+  }
+
+  screen.innerHTML = `<div class="big-title">Leaderboard</div>` + body;
+}
+
+/* ---------------------------------------------------------------------
+   OPTA STATS — per-player analytics (exact / result / miss breakdown)
+   ------------------------------------------------------------------- */
+function renderStats() {
+  document.getElementById("header-stage").textContent = "OPTA STATS";
+  const rows = buildLeaderboard();
+  const scoredGames = matches.filter(
+    (m) => m.finished && !isExcluded(m) && m.home_score != null && m.away_score != null
+  ).length;
+
+  const pct = (n, d) => (d > 0 ? Math.round((n / d) * 100) : 0);
+  const w = (n, d) => (d > 0 ? (n / d) * 100 : 0);
+
+  const cards =
     rows.length === 0
       ? `<p class="note">No players yet. Add yourself on the Fixtures tab.</p>`
       : rows
-          .map((r, i) => {
-            const leader = i === 0 && r.points > 0;
-            return `<div class="card lb-row ${leader ? "leader" : ""}">
-              <div class="lb-rank">${i < 3 ? medals[i] : i + 1}</div>
-              <div class="avatar" style="background:${avatarColor(r.name)}">${esc(initials(r.name))}</div>
-              <div class="lb-name">
+          .map((r) => {
+            const miss = r.scored - r.exact - r.results;
+            const acc = pct(r.exact + r.results, r.scored);          // % of picks that scored
+            const ppg = r.scored > 0 ? (r.points / r.scored).toFixed(1) : "0.0";
+            const bar = r.scored > 0
+              ? `<div class="stat-bar">
+                   <div class="seg-exact" style="width:${w(r.exact, r.scored)}%"></div>
+                   <div class="seg-result" style="width:${w(r.results, r.scored)}%"></div>
+                   <div class="seg-miss" style="width:${w(miss, r.scored)}%"></div>
+                 </div>`
+              : `<div class="stat-bar"></div>`;
+            return `<div class="card stat-row">
+              <div class="stat-head">
+                ${jerseyHTML(r.name)}
                 <div class="n">${esc(r.name)}</div>
-                <div class="sub">${r.exact} exact · ${r.results} results</div>
+                <div class="pts">${r.points} <small>PTS</small></div>
               </div>
-              <div class="lb-pts-wrap">
-                <div class="lb-pts-col">
-                  <div class="lb-pts-label">GRP</div>
-                  <div class="lb-pts-val">${r.groupPts}</div>
-                </div>
-                <div class="lb-pts-col">
-                  <div class="lb-pts-label">KO</div>
-                  <div class="lb-pts-val">${r.koPts}</div>
-                </div>
-                <div class="lb-pts-col">
-                  <div class="lb-pts-label">TOT</div>
-                  <div class="lb-pts-val ${leader ? "leader" : ""}">${r.points}</div>
-                </div>
+              ${bar}
+              <div class="legend">
+                <span><span class="dot" style="background:var(--accent)"></span>Exact ${r.exact}</span>
+                <span><span class="dot" style="background:var(--gold)"></span>Result ${r.results}</span>
+                <span><span class="dot" style="background:#cbd5e1"></span>Miss ${miss}</span>
+              </div>
+              <div class="stat-grid">
+                <div class="stat-cell exact"><div class="v">${pct(r.exact, r.scored)}%</div><div class="l">Exact rate</div></div>
+                <div class="stat-cell result"><div class="v">${acc}%</div><div class="l">Hit rate</div></div>
+                <div class="stat-cell"><div class="v">${ppg}</div><div class="l">Pts / game</div></div>
+                <div class="stat-cell"><div class="v">${r.scored}</div><div class="l">Games</div></div>
               </div>
             </div>`;
           })
           .join("");
 
   screen.innerHTML = `
-    <div class="big-title">Leaderboard</div>
-    ${list}`;
+    <div><span class="opta-title">📊 OPTA STATS</span></div>
+    <p class="note">${scoredGames} game${scoredGames === 1 ? "" : "s"} scored so far. Exact rate = perfect scorelines; hit rate = exact + correct results.</p>
+    ${cards}`;
 }
 
 /* ---------------------------------------------------------------------
-   MANAGE  (results / knockout / backfill) — no password, share with
-   whoever runs the pool.
+   MANAGE  (results / deadlines / games / predictions) — PIN-gated.
    ------------------------------------------------------------------- */
 let backfillPlayerId = null;
 
@@ -405,26 +571,23 @@ function renderManage() {
     <div class="tabs">
       <button class="tab ${manageTab === "results" ? "active" : ""}" onclick="setManageTab('results')">Results</button>
       <button class="tab ${manageTab === "deadlines" ? "active" : ""}" onclick="setManageTab('deadlines')">Deadlines</button>
-      <button class="tab ${manageTab === "knockout" ? "active" : ""}" onclick="setManageTab('knockout')">Knockout</button>
+      <button class="tab ${manageTab === "games" ? "active" : ""}" onclick="setManageTab('games')">Games</button>
       <button class="tab ${manageTab === "backfill" ? "active" : ""}" onclick="setManageTab('backfill')">Predictions</button>
     </div>`;
 
   let body = "";
-  const playable = matches.filter((m) => m.home_team !== "TBD" && m.away_team !== "TBD");
-  const knockout = matches.filter((m) => m.stage !== "GROUP");
+  const playable = visibleMatches().filter((m) => m.home_team !== "TBD" && m.away_team !== "TBD");
 
   if (manageTab === "results") {
     body =
-      `<p class="note">Enter the final score of any game (including ones already played). Saving locks the game and updates the leaderboard. You can also set custom <b>correct / exact</b> points for any single game below its score.</p>` +
+      `<p class="note">Enter the final score of any game (including ones already played). Saving locks the game and updates the leaderboard.</p>` +
       playable.map(resultRowHTML).join("");
   } else if (manageTab === "deadlines") {
     body =
-      `<p class="note">Set when picks close for each game. After the deadline, players can't add or change a prediction. Set a kickoff time, or hit <b>Close now</b> to lock a game (or a whole matchday) immediately.</p>` +
+      `<p class="note">Every week starts <b>closed</b> — players can see the games but can't predict until you open the week with its toggle. You can also set per-game kickoff deadlines, or hit <b>Close now</b> to lock a game immediately.</p>` +
       deadlinesBody(playable);
-  } else if (manageTab === "knockout") {
-    body =
-      `<p class="note">As the bracket fills, type the two teams for each knockout game (emoji flag optional). Predictions open once both teams are set.</p>` +
-      knockout.map(koRowHTML).join("");
+  } else if (manageTab === "games") {
+    body = gamesBody();
   } else {
     const opts = players
       .map((p) => `<option value="${p.id}" ${p.id === backfillPlayerId ? "selected" : ""}>${esc(p.name)}</option>`)
@@ -440,56 +603,42 @@ function renderManage() {
       <div class="big-title" style="font-size:22px;margin:0">Manage</div>
       <button class="btn ghost sm" onclick="lockManage()">🔒 Lock</button>
     </div>
-    ${tabs}${body}`;
+    ${weekSelectHTML()}${tabs}${body}`;
 }
 
 function manageLabel(m) {
-  return m.group_name ? `Group ${m.group_name} · MD${m.matchday}` : esc(m.slot_label || m.stage);
+  return shortLabel(m) + (m.slot_label ? ` · ${esc(m.slot_label)}` : "");
 }
 
 function resultRowHTML(m) {
-  const pts = pointsFor(m);
-  const overridden = m.pts_exact != null || m.pts_result != null;
-  const ptsTag = overridden ? "custom" : involvesBig6(m) ? "Big 6" : "default";
-  const numStyle = "width:42px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700";
   return `<div class="card">
     <div class="row-label">${manageLabel(m)}${m.finished ? " · scored ✓" : ""}</div>
     <div class="row-mini">
       <div class="grow">${m.home_flag} ${esc(m.home_team)} <span class="muted">v</span> ${m.away_flag} ${esc(m.away_team)}</div>
-      <input type="number" min="0" max="99" id="rh-${m.id}" value="${m.home_score ?? ""}" style="${numStyle}">
-      <input type="number" min="0" max="99" id="ra-${m.id}" value="${m.away_score ?? ""}" style="${numStyle}">
+      <input type="number" min="0" max="99" id="rh-${m.id}" value="${m.home_score ?? ""}" style="width:42px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
+      <input type="number" min="0" max="99" id="ra-${m.id}" value="${m.away_score ?? ""}" style="width:42px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
       <button class="btn sm" onclick="setResult(${m.id})">${m.finished ? "Update" : "Set"}</button>
       ${m.finished ? `<button class="btn ghost sm" onclick="clearResult(${m.id})">Clear</button>` : ""}
-    </div>
-    <div class="row-mini" style="margin-top:6px">
-      <div class="grow muted" style="font-size:12px">Points <span class="muted">(${ptsTag})</span> — correct / exact</div>
-      <input type="number" min="0" max="99" id="pr-${m.id}" value="${pts.RESULT}" style="${numStyle}">
-      <input type="number" min="0" max="99" id="pe-${m.id}" value="${pts.EXACT}" style="${numStyle}">
-      <button class="btn sm" onclick="setPoints(${m.id})">Save</button>
-      ${overridden ? `<button class="btn ghost sm" onclick="clearPoints(${m.id})">Reset</button>` : ""}
     </div>
   </div>`;
 }
 
-/* ---- Deadlines tab: group games into sections, each with a bulk "Close all now" ---- */
+/* ---- Deadlines tab: group games into weeks, each with an Open-picks
+   toggle (weeks start closed) and a bulk "Close all now" ---- */
 function deadlinesBody(playable) {
-  const sections = [];
-  for (const md of [1, 2, 3]) {
-    const sub = playable.filter((m) => m.stage === "GROUP" && m.matchday === md);
-    if (sub.length) sections.push({ title: `Group Stage · Matchday ${md}`, stage: "GROUP", md, list: sub });
-  }
-  for (const stage of ["R32", "R16", "QF", "SF", "THIRD", "FINAL"]) {
-    const sub = playable.filter((m) => m.stage === stage);
-    if (sub.length) sections.push({ title: STAGE_TITLES[stage], stage, md: null, list: sub });
-  }
-  return sections
+  return sectionsOf(playable)
     .map((s) => {
+      const weekOpen = openWeeks.has(weekKey(s.comp, s.week));
+      const toggle = weekOpen
+        ? `<button class="btn sm" onclick="toggleWeekOpen('${s.comp}', ${s.week})">🔓 Picks OPEN — close</button>`
+        : `<button class="btn ghost sm" onclick="toggleWeekOpen('${s.comp}', ${s.week})">🔒 Picks closed — open</button>`;
       const anyOpen = s.list.some((m) => !m.finished && !isClosed(m));
-      const btn = anyOpen
-        ? `<button class="btn ghost sm" onclick="closeGroup('${s.stage}', ${s.md ?? "null"})">Close all now</button>`
-        : `<span class="ok">all closed ✓</span>`;
-      return `<div style="display:flex;align-items:center;justify-content:space-between;margin:16px 4px 6px">
-          <span class="section-title" style="margin:0">${s.title}</span>${btn}
+      const btn = anyOpen && weekOpen
+        ? `<button class="btn ghost sm" onclick="closeWeek('${s.comp}', ${s.week})">Close all now</button>`
+        : "";
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin:16px 4px 6px">
+          <span class="section-title" style="margin:0">${s.title}</span>
+          <span style="display:flex;gap:6px">${toggle}${btn}</span>
         </div>` + s.list.map(deadlineRowHTML).join("");
     })
     .join("");
@@ -520,18 +669,56 @@ function deadlineRowHTML(m) {
   </div>`;
 }
 
-function koRowHTML(m) {
+/* ---- Games tab: edit / move / delete any game, or add extra ones ---- */
+function gamesBody() {
+  const w = activeWeek();
+  const defWeek = w === "all" ? 1 : w;
+  const addForm = `
+    <p class="note">All 380 games are pre-loaded. Move a game to a different week by changing its week number and hitting Save; delete a game with 🗑. You can also add an extra game below — set the badge emojis (optional), teams, week number, and an optional kickoff/deadline.</p>
+    <div class="card">
+      <div class="row-label">Add a game</div>
+      <div class="add-grid">
+        <span class="muted" style="align-self:center;font-size:12px;font-weight:700">Week #</span>
+        <input type="number" min="1" max="99" id="ag-week" value="${defWeek}" placeholder="Week #" title="Week number">
+      </div>
+      <div class="ko-grid" style="margin-top:6px">
+        <input class="flag" id="ag-hf" placeholder="🔴">
+        <input id="ag-ht" placeholder="Home team">
+        <input class="flag" id="ag-af" placeholder="🔵">
+        <input id="ag-at" placeholder="Away team">
+      </div>
+      <input type="datetime-local" id="ag-ko" style="width:100%;margin-top:6px;border:1px solid var(--line);border-radius:8px;padding:7px;font-size:13px" title="Kickoff / picks deadline (optional)">
+      <button class="btn block sm" style="margin-top:8px" onclick="addGame()">+ Add game</button>
+    </div>`;
+
+  const list = sectionsOf(visibleMatches())
+    .map(
+      (s) =>
+        `<div class="section-title">${s.title}</div>` +
+        s.list.map(gameEditRowHTML).join("")
+    )
+    .join("");
+
+  return addForm + list;
+}
+
+function gameEditRowHTML(m) {
   const ht = m.home_team === "TBD" ? "" : esc(m.home_team);
   const at = m.away_team === "TBD" ? "" : esc(m.away_team);
   return `<div class="card">
-    <div class="row-label">${esc(m.slot_label || m.stage)}</div>
+    <div class="row-label">${manageLabel(m)}${m.finished ? " · scored ✓" : ""}</div>
     <div class="ko-grid">
-      <input class="flag" id="khf-${m.id}" value="${m.home_flag}" placeholder="🏳️">
-      <input id="kht-${m.id}" value="${ht}" placeholder="Home team">
-      <input class="flag" id="kaf-${m.id}" value="${m.away_flag}" placeholder="🏳️">
-      <input id="kat-${m.id}" value="${at}" placeholder="Away team">
+      <input class="flag" id="ehf-${m.id}" value="${m.home_flag}" placeholder="🏳️">
+      <input id="eht-${m.id}" value="${ht}" placeholder="Home team">
+      <input class="flag" id="eaf-${m.id}" value="${m.away_flag}" placeholder="🏳️">
+      <input id="eat-${m.id}" value="${at}" placeholder="Away team">
     </div>
-    <button class="btn block sm" style="margin-top:8px" onclick="setKnockout(${m.id})">Save matchup</button>
+    <div class="row-mini" style="margin-top:8px">
+      <span class="muted" style="font-size:12px">Wk</span>
+      <input type="number" min="1" max="99" id="ew-${m.id}" value="${m.week}" style="width:52px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
+      <button class="btn sm grow" onclick="saveGame(${m.id})">Save</button>
+      <button class="btn ghost sm" onclick="deleteGame(${m.id})">🗑 Delete</button>
+    </div>
   </div>`;
 }
 
@@ -563,15 +750,15 @@ async function refresh() { await load(); render(); }
 
 window.selectPlayer = (id, name) => {
   myId = id; myName = name;
-  localStorage.setItem("wc_player_id", id);
-  localStorage.setItem("wc_player_name", name);
+  localStorage.setItem("plucl_player_id", id);
+  localStorage.setItem("plucl_player_name", name);
   render();
 };
 
 window.clearPlayer = () => {
   myId = null; myName = null;
-  localStorage.removeItem("wc_player_id");
-  localStorage.removeItem("wc_player_name");
+  localStorage.removeItem("plucl_player_id");
+  localStorage.removeItem("plucl_player_name");
   render();
 };
 
@@ -594,7 +781,7 @@ window.savePick = async (matchId) => {
   const h = num(`h-${matchId}`), a = num(`a-${matchId}`);
   if (h === null || a === null) { document.getElementById(`foot-${matchId}`).innerHTML = '<span class="pts-miss">enter both</span>'; return; }
   const m = matches.find((x) => x.id === matchId);
-  if (m && (isClosed(m) || isExcluded(m))) { // deadline passed or frozen — refuse
+  if (m && (isClosed(m) || isExcluded(m) || !isWeekOpen(m))) { // deadline passed, frozen, or week not opened — refuse
     await refresh();
     return;
   }
@@ -623,26 +810,9 @@ window.clearResult = async (matchId) => {
   } catch (e) { alert(e.message); }
 };
 
-// ---- Custom per-game points (override the default / Big-6 values) ----
-window.setPoints = async (matchId) => {
-  const r = num(`pr-${matchId}`), e = num(`pe-${matchId}`);
-  if (r === null || e === null) { alert("Enter both point values (0–99)"); return; }
-  try {
-    await dbf.collection("matches").doc(String(matchId)).update({ pts_result: r, pts_exact: e });
-    await refresh();
-  } catch (err) { alert(err.message); }
-};
-
-window.clearPoints = async (matchId) => {
-  try {
-    await dbf.collection("matches").doc(String(matchId)).update({ pts_result: null, pts_exact: null });
-    await refresh();
-  } catch (err) { alert(err.message); }
-};
-
 // ---- Prediction deadlines ----
 window.setKickoff = async (matchId) => {
-  const v = document.getElementById(`dl-${matchId}`).value; // local datetime, e.g. 2026-06-13T12:00
+  const v = document.getElementById(`dl-${matchId}`).value; // local datetime
   if (!v) { alert("Pick a date and time first."); return; }
   const iso = new Date(v).toISOString(); // store as UTC so it's correct for everyone
   try {
@@ -665,11 +835,28 @@ window.clearKickoff = async (matchId) => {
   } catch (e) { alert(e.message); }
 };
 
-// Close every still-open game in a section (matchday or knockout round) right now.
-window.closeGroup = async (stage, md) => {
+// Open or close a whole week for predictions (weeks start closed).
+window.toggleWeekOpen = async (comp, week) => {
+  const key = weekKey(comp, week);
+  const next = new Set(openWeeks);
+  if (next.has(key)) {
+    if (!confirm(`Close Week ${week} for predictions? Players won't be able to enter picks.`)) return;
+    next.delete(key);
+  } else {
+    if (!confirm(`Open Week ${week} for predictions? Players will be able to enter picks.`)) return;
+    next.add(key);
+  }
+  try {
+    await dbf.collection("meta").doc("openWeeks").set({ keys: [...next] });
+    await refresh();
+  } catch (e) { alert(e.message); }
+};
+
+// Close every still-open game in a week right now.
+window.closeWeek = async (comp, week) => {
   const now = new Date().toISOString();
   const targets = matches.filter(
-    (m) => m.stage === stage && (md === null || m.matchday === md) &&
+    (m) => m.comp === comp && m.week === week &&
       m.home_team !== "TBD" && m.away_team !== "TBD" && !m.finished && !isClosed(m)
   );
   if (targets.length === 0) return;
@@ -682,13 +869,56 @@ window.closeGroup = async (stage, md) => {
   } catch (e) { alert(e.message); }
 };
 
-window.setKnockout = async (matchId) => {
-  const homeTeam = document.getElementById(`kht-${matchId}`).value.trim() || "TBD";
-  const awayTeam = document.getElementById(`kat-${matchId}`).value.trim() || "TBD";
-  const homeFlag = document.getElementById(`khf-${matchId}`).value.trim();
-  const awayFlag = document.getElementById(`kaf-${matchId}`).value.trim();
+// ---- Games: add / edit / delete ----
+window.addGame = async () => {
+  const comp = "EPL";
+  const week = Math.max(1, Math.trunc(Number(document.getElementById("ag-week").value)) || 1);
+  const homeTeam = document.getElementById("ag-ht").value.trim() || "TBD";
+  const awayTeam = document.getElementById("ag-at").value.trim() || "TBD";
+  const homeFlag = document.getElementById("ag-hf").value.trim();
+  const awayFlag = document.getElementById("ag-af").value.trim();
+  const koVal = document.getElementById("ag-ko").value;
+  const kickoff = koVal ? new Date(koVal).toISOString() : null;
+
+  const id = matches.reduce((mx, m) => Math.max(mx, Number(m.id) || 0), 0) + 1;
+  const ordering = matches.reduce((mx, m) => Math.max(mx, Number(m.ordering) || 0), -1) + 1;
+
   try {
-    await dbf.collection("matches").doc(String(matchId)).update({ home_team: homeTeam, away_team: awayTeam, home_flag: homeFlag, away_flag: awayFlag });
+    await dbf.collection("matches").doc(String(id)).set({
+      id, comp, week, ordering, slot_label: null,
+      home_team: homeTeam, away_team: awayTeam,
+      home_flag: homeFlag, away_flag: awayFlag,
+      kickoff, home_score: null, away_score: null, finished: false,
+    });
+    await refresh();
+  } catch (e) { alert(e.message); }
+};
+
+window.saveGame = async (matchId) => {
+  const homeTeam = document.getElementById(`eht-${matchId}`).value.trim() || "TBD";
+  const awayTeam = document.getElementById(`eat-${matchId}`).value.trim() || "TBD";
+  const homeFlag = document.getElementById(`ehf-${matchId}`).value.trim();
+  const awayFlag = document.getElementById(`eaf-${matchId}`).value.trim();
+  const week = Math.max(1, Math.trunc(Number(document.getElementById(`ew-${matchId}`).value)) || 1);
+  try {
+    await dbf.collection("matches").doc(String(matchId)).update({
+      home_team: homeTeam, away_team: awayTeam, home_flag: homeFlag, away_flag: awayFlag, week,
+    });
+    await refresh();
+  } catch (e) { alert(e.message); }
+};
+
+window.deleteGame = async (matchId) => {
+  const m = matches.find((x) => x.id === matchId);
+  if (!m) return;
+  if (!confirm(`Delete ${m.home_team} v ${m.away_team}? Everyone's predictions for it are removed too.`)) return;
+  try {
+    const batch = dbf.batch();
+    batch.delete(dbf.collection("matches").doc(String(matchId)));
+    for (const pr of predictions.filter((p) => p.match_id === matchId)) {
+      batch.delete(dbf.collection("predictions").doc(`${pr.player_id}_${matchId}`));
+    }
+    await batch.commit();
     await refresh();
   } catch (e) { alert(e.message); }
 };
