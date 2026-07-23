@@ -13,8 +13,38 @@ const PLAYERS = ["Solar", "DKC", "Dere", "Ermo", "Costa", "Mab"];
    same leaderboard. No build step — just files a browser opens.
    ===================================================================== */
 
-/* ---- scoring rules (change these if you want) ---- */
-const POINTS = { EXACT: 20, RESULT: 15, MISS: 0 };
+/* ---- scoring rules ----
+   Default game:  correct result +5, exact score +10.
+   Big-6 game:    correct result +15, exact score +25.  (any game featuring
+                  a team in BIG6_TEAMS below counts as a Big-6 game.)
+   Per-game override: set custom correct/exact points for any single game in
+   Manage → Results. An override always wins over the values below. */
+const POINTS_DEFAULT = { EXACT: 10, RESULT: 5, MISS: 0 };
+const POINTS_BIG6    = { EXACT: 25, RESULT: 15, MISS: 0 };
+
+/* Teams that make a game a "Big-6" game. Names match the display names in
+   fixtures.js; a few short/alt spellings are included too so it still matches
+   if a game is added or renamed by hand. Edit this list to change who counts. */
+const BIG6_TEAMS = [
+  "Arsenal",
+  "Chelsea",
+  "Liverpool",
+  "Manchester City", "Man City",
+  "Manchester United", "Man Utd", "Man United",
+  "Tottenham Hotspur", "Tottenham", "Spurs",
+];
+function involvesBig6(m) {
+  return BIG6_TEAMS.includes(m.home_team) || BIG6_TEAMS.includes(m.away_team);
+}
+
+/* Effective points for a game: a manual override wins; otherwise Big-6 games
+   use POINTS_BIG6 and every other game uses POINTS_DEFAULT. */
+function pointsFor(m) {
+  const base = involvesBig6(m) ? POINTS_BIG6 : POINTS_DEFAULT;
+  const exact  = (m && m.pts_exact  != null) ? m.pts_exact  : base.EXACT;
+  const result = (m && m.pts_result != null) ? m.pts_result : base.RESULT;
+  return { EXACT: exact, RESULT: result, MISS: 0 };
+}
 
 /* ---- competition (EPL only) ---- */
 const COMPS = {
@@ -113,10 +143,10 @@ const screen = document.getElementById("screen");
 /* ---- small helpers ---- */
 const sign = (h, a) => (h > a ? 1 : h < a ? -1 : 0);
 
-function scorePrediction(ph, pa, ah, aa) {
-  if (ph === ah && pa === aa) return { pts: POINTS.EXACT, kind: "exact" };
-  if (sign(ph, pa) === sign(ah, aa)) return { pts: POINTS.RESULT, kind: "result" };
-  return { pts: POINTS.MISS, kind: "miss" };
+function scorePrediction(ph, pa, ah, aa, pts) {
+  if (ph === ah && pa === aa) return { pts: pts.EXACT, kind: "exact" };
+  if (sign(ph, pa) === sign(ah, aa)) return { pts: pts.RESULT, kind: "result" };
+  return { pts: pts.MISS, kind: "miss" };
 }
 
 function esc(s) {
@@ -364,7 +394,7 @@ function matchRowHTML(m) {
   if (frozen) {
     foot = `<span class="locked">frozen · not counted</span>`;
   } else if (m.finished && mine) {
-    const s = scorePrediction(mine.home_score, mine.away_score, m.home_score, m.away_score);
+    const s = scorePrediction(mine.home_score, mine.away_score, m.home_score, m.away_score, pointsFor(m));
     const cls = s.kind === "exact" ? "pts-exact" : s.kind === "result" ? "pts-result" : "pts-miss";
     const label = s.kind === "exact" ? "Exact" : s.kind === "result" ? "Result" : "Miss";
     foot = `<span class="${cls}">${label} +${s.pts}</span>`;
@@ -444,7 +474,7 @@ function buildLeaderboard() {
     const row = rows.get(pr.player_id);
     if (!m || !row) continue;
     row.scored++;
-    const s = scorePrediction(pr.home_score, pr.away_score, m.home_score, m.away_score);
+    const s = scorePrediction(pr.home_score, pr.away_score, m.home_score, m.away_score, pointsFor(m));
     row.points += s.pts;
     if (s.kind === "exact") row.exact++;
     else if (s.kind === "result") row.results++;
@@ -573,6 +603,7 @@ function renderManage() {
       <button class="tab ${manageTab === "deadlines" ? "active" : ""}" onclick="setManageTab('deadlines')">Deadlines</button>
       <button class="tab ${manageTab === "games" ? "active" : ""}" onclick="setManageTab('games')">Games</button>
       <button class="tab ${manageTab === "backfill" ? "active" : ""}" onclick="setManageTab('backfill')">Predictions</button>
+      <button class="tab ${manageTab === "points" ? "active" : ""}" onclick="setManageTab('points')">Points</button>
     </div>`;
 
   let body = "";
@@ -588,6 +619,8 @@ function renderManage() {
       deadlinesBody(playable);
   } else if (manageTab === "games") {
     body = gamesBody();
+  } else if (manageTab === "points") {
+    body = pointsBody(playable);
   } else {
     const opts = players
       .map((p) => `<option value="${p.id}" ${p.id === backfillPlayerId ? "selected" : ""}>${esc(p.name)}</option>`)
@@ -619,6 +652,40 @@ function resultRowHTML(m) {
       <input type="number" min="0" max="99" id="ra-${m.id}" value="${m.away_score ?? ""}" style="width:42px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
       <button class="btn sm" onclick="setResult(${m.id})">${m.finished ? "Update" : "Set"}</button>
       ${m.finished ? `<button class="btn ghost sm" onclick="clearResult(${m.id})">Clear</button>` : ""}
+    </div>
+  </div>`;
+}
+
+/* ---- Points tab: correct / exact points for every game. Pre-filled with
+   the game's effective points (default 5·10, Big-6 15·25); Save writes a
+   per-game override, Reset removes it. Grouped by week like the other tabs. */
+function pointsBody(playable) {
+  const note = `<p class="note">Points for every game. Default is <b>correct 5 · exact 10</b>; Big-6 games (Arsenal, Chelsea, Liverpool, Man City, Man Utd, Spurs) default to <b>correct 15 · exact 25</b>. Edit any game below and hit <b>Save</b>; <b>Reset</b> returns it to its default. The tag shows whether a game is default, Big&nbsp;6, or custom.</p>`;
+  const list = sectionsOf(playable)
+    .map(
+      (s) =>
+        `<div class="section-title">${s.title}</div>` +
+        s.list.map(pointsRowHTML).join("")
+    )
+    .join("");
+  return note + list;
+}
+
+function pointsRowHTML(m) {
+  const pts = pointsFor(m);
+  const overridden = m.pts_exact != null || m.pts_result != null;
+  const tag = overridden ? "custom" : involvesBig6(m) ? "Big 6" : "default";
+  const numStyle = "width:46px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700";
+  return `<div class="card">
+    <div class="row-label">${manageLabel(m)} · <span class="muted">${tag}</span></div>
+    <div class="grow" style="font-size:14px;font-weight:600;margin-bottom:6px">${m.home_flag} ${esc(m.home_team)} <span class="muted">v</span> ${m.away_flag} ${esc(m.away_team)}</div>
+    <div class="row-mini">
+      <span class="muted" style="font-size:12px">Correct</span>
+      <input type="number" min="0" max="99" id="pr-${m.id}" value="${pts.RESULT}" style="${numStyle}">
+      <span class="muted" style="font-size:12px">Exact</span>
+      <input type="number" min="0" max="99" id="pe-${m.id}" value="${pts.EXACT}" style="${numStyle}">
+      <button class="btn sm grow" onclick="setPoints(${m.id})">Save</button>
+      ${overridden ? `<button class="btn ghost sm" onclick="clearPoints(${m.id})">Reset</button>` : ""}
     </div>
   </div>`;
 }
@@ -808,6 +875,23 @@ window.clearResult = async (matchId) => {
     await dbf.collection("matches").doc(String(matchId)).update({ home_score: null, away_score: null, finished: false });
     await refresh();
   } catch (e) { alert(e.message); }
+};
+
+// ---- Custom per-game points (override the default / Big-6 values) ----
+window.setPoints = async (matchId) => {
+  const r = num(`pr-${matchId}`), e = num(`pe-${matchId}`);
+  if (r === null || e === null) { alert("Enter both point values (0–99)"); return; }
+  try {
+    await dbf.collection("matches").doc(String(matchId)).update({ pts_result: r, pts_exact: e });
+    await refresh();
+  } catch (err) { alert(err.message); }
+};
+
+window.clearPoints = async (matchId) => {
+  try {
+    await dbf.collection("matches").doc(String(matchId)).update({ pts_result: null, pts_exact: null });
+    await refresh();
+  } catch (err) { alert(err.message); }
 };
 
 // ---- Prediction deadlines ----
