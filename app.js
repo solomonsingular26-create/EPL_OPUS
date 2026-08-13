@@ -14,36 +14,30 @@ const PLAYERS = ["Solar", "DKC", "Dere", "Ermo", "Costa", "Mab"];
    ===================================================================== */
 
 /* ---- scoring rules ----
-   Default game:  correct result +5, exact score +10.
-   Big-6 game:    correct result +15, exact score +25.  (any game featuring
-                  a team in BIG6_TEAMS below counts as a Big-6 game.)
-   Per-game override: set custom correct/exact points for any single game in
-   Manage → Results. An override always wins over the values below. */
-const POINTS_DEFAULT = { EXACT: 10, RESULT: 5, MISS: 0 };
-const POINTS_BIG6    = { EXACT: 25, RESULT: 15, MISS: 0 };
+   These are the DEFAULTS. Any individual game can override them from
+   Manage -> Points (stored on the match as pts_exact / pts_result).
+   Games with nothing set fall back to the numbers below. */
+const POINTS = { EXACT: 20, RESULT: 15, MISS: 0 };
 
-/* Teams that make a game a "Big-6" game. Names match the display names in
-   fixtures.js; a few short/alt spellings are included too so it still matches
-   if a game is added or renamed by hand. Edit this list to change who counts. */
-const BIG6_TEAMS = [
-  "Arsenal",
-  "Chelsea",
-  "Liverpool",
-  "Manchester City", "Man City",
-  "Manchester United", "Man Utd", "Man United",
-  "Tottenham Hotspur", "Tottenham", "Spurs",
-];
-function involvesBig6(m) {
-  return BIG6_TEAMS.includes(m.home_team) || BIG6_TEAMS.includes(m.away_team);
+/* Points actually on offer for one game. Falls back to the defaults above
+   whenever a match has no custom value (so old data keeps working). */
+function ptsFor(m) {
+  // NOTE: null/undefined/"" must fall back to the default, NOT to 0.
+  // (Number(null) is 0, so the empty check has to come first.)
+  const one = (v, dflt) => {
+    if (v === null || v === undefined || v === "") return dflt;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : dflt;
+  };
+  return {
+    exact: one(m && m.pts_exact, POINTS.EXACT),
+    result: one(m && m.pts_result, POINTS.RESULT),
+  };
 }
-
-/* Effective points for a game: a manual override wins; otherwise Big-6 games
-   use POINTS_BIG6 and every other game uses POINTS_DEFAULT. */
-function pointsFor(m) {
-  const base = involvesBig6(m) ? POINTS_BIG6 : POINTS_DEFAULT;
-  const exact  = (m && m.pts_exact  != null) ? m.pts_exact  : base.EXACT;
-  const result = (m && m.pts_result != null) ? m.pts_result : base.RESULT;
-  return { EXACT: exact, RESULT: result, MISS: 0 };
+/* true when this game is worth something other than the house default */
+function hasCustomPoints(m) {
+  const p = ptsFor(m);
+  return p.exact !== POINTS.EXACT || p.result !== POINTS.RESULT;
 }
 
 /* ---- competition (EPL only) ---- */
@@ -143,10 +137,11 @@ const screen = document.getElementById("screen");
 /* ---- small helpers ---- */
 const sign = (h, a) => (h > a ? 1 : h < a ? -1 : 0);
 
-function scorePrediction(ph, pa, ah, aa, pts) {
-  if (ph === ah && pa === aa) return { pts: pts.EXACT, kind: "exact" };
-  if (sign(ph, pa) === sign(ah, aa)) return { pts: pts.RESULT, kind: "result" };
-  return { pts: pts.MISS, kind: "miss" };
+function scorePrediction(ph, pa, ah, aa, m) {
+  const P = ptsFor(m); // per-game values, or the defaults
+  if (ph === ah && pa === aa) return { pts: P.exact, kind: "exact" };
+  if (sign(ph, pa) === sign(ah, aa)) return { pts: P.result, kind: "result" };
+  return { pts: POINTS.MISS, kind: "miss" };
 }
 
 function esc(s) {
@@ -394,7 +389,7 @@ function matchRowHTML(m) {
   if (frozen) {
     foot = `<span class="locked">frozen · not counted</span>`;
   } else if (m.finished && mine) {
-    const s = scorePrediction(mine.home_score, mine.away_score, m.home_score, m.away_score, pointsFor(m));
+    const s = scorePrediction(mine.home_score, mine.away_score, m.home_score, m.away_score, m);
     const cls = s.kind === "exact" ? "pts-exact" : s.kind === "result" ? "pts-result" : "pts-miss";
     const label = s.kind === "exact" ? "Exact" : s.kind === "result" ? "Result" : "Miss";
     foot = `<span class="${cls}">${label} +${s.pts}</span>`;
@@ -421,6 +416,17 @@ function matchRowHTML(m) {
   const left = pill + " " + shortLabel(m) +
     (m.slot_label ? ` · ${esc(m.slot_label)}` : "") + kickoff;
 
+  // points on offer — always visible, so everyone knows the stakes BEFORE
+  // they predict. Highlighted when this game is worth more than the default.
+  const P = ptsFor(m);
+  const bonus = hasCustomPoints(m);
+  const ptsBar = `<div class="pts-bar${bonus ? " bonus" : ""}">
+      ${bonus ? `<span class="pts-tag">⭐ SPECIAL</span>` : ""}
+      <span class="pts-item"><b>${P.exact}</b> pts exact score</span>
+      <span class="pts-dot">·</span>
+      <span class="pts-item"><b>${P.result}</b> pts correct result</span>
+    </div>`;
+
   return `<div class="card${frozen ? " frozen" : ""}">
     <div class="match">
       <div class="teams">
@@ -433,6 +439,7 @@ function matchRowHTML(m) {
         <input type="number" min="0" max="99" id="a-${m.id}" value="${aVal}" ${dis}>
       </div>
     </div>
+    ${ptsBar}
     <div class="match-foot"><span class="foot-left">${left}</span><span id="foot-${m.id}">${foot}</span></div>
   </div>`;
 }
@@ -466,22 +473,56 @@ function buildLeaderboard() {
   const rows = new Map();
   for (const p of players) rows.set(p.id, {
     name: p.name,
-    points: 0, exact: 0, results: 0, scored: 0,
+    points: 0, exact: 0, results: 0, scored: 0, weeksWon: 0,
   });
+
+  // per-week points, keyed by "comp|week", for the weeks-won count
+  const weekBuckets = new Map();
 
   for (const pr of predictions) {
     const m = finished.get(pr.match_id);
     const row = rows.get(pr.player_id);
     if (!m || !row) continue;
     row.scored++;
-    const s = scorePrediction(pr.home_score, pr.away_score, m.home_score, m.away_score, pointsFor(m));
+    const s = scorePrediction(pr.home_score, pr.away_score, m.home_score, m.away_score, m);
     row.points += s.pts;
     if (s.kind === "exact") row.exact++;
     else if (s.kind === "result") row.results++;
+
+    const wk = m.comp + "|" + m.week;
+    let bucket = weekBuckets.get(wk);
+    if (!bucket) { bucket = new Map(); weekBuckets.set(wk, bucket); }
+    bucket.set(pr.player_id, (bucket.get(pr.player_id) || 0) + s.pts);
   }
+
+  // a "week win" = most points that week; ties are co-wins (all leaders get one)
+  for (const bucket of weekBuckets.values()) {
+    let max = 0;
+    for (const v of bucket.values()) if (v > max) max = v;
+    if (max <= 0) continue;
+    for (const [pid, v] of bucket) {
+      if (v === max) { const row = rows.get(pid); if (row) row.weeksWon++; }
+    }
+  }
+
   return [...rows.values()].sort(
     (a, b) => b.points - a.points || b.exact - a.exact || a.name.localeCompare(b.name)
   );
+}
+
+// player name -> Amharic spelling shown in parentheses on the leaderboard.
+// Add new players here (match is case-insensitive on the English name).
+const AMHARIC_NAMES = {
+  "ermo": "ኤርሞ",
+  "dkc": "ደምስ",
+  "dere": "ደሬ",
+  "solar": "ሶል",
+  "mab": "ማብ",
+  "costa": "ዮን",
+};
+function amharic(name) {
+  const am = AMHARIC_NAMES[String(name || "").trim().toLowerCase()];
+  return am ? ` (${am})` : "";
 }
 
 function renderLeaderboard() {
@@ -491,15 +532,15 @@ function renderLeaderboard() {
   const medals = ["🥇", "🥈", "🥉"];
 
   const rowHTML = (r, i) => {
-    const leader = i === 0;
+    const leader = i === 0 && r.points > 0;
     const last = n >= 4 && i === n - 1;
     const badge = i < medals.length ? medals[i] : String(i + 1);
     return `<div class="card lb-row ${leader ? "leader" : ""} ${last ? "last" : ""}">
       <div class="lb-rank ${i >= medals.length ? "num" : ""}" title="Rank ${i + 1}">${badge}</div>
       ${jerseyHTML(r.name)}
       <div class="lb-main">
-        <span class="lb-name">${esc(r.name)}</span>
-        <span class="lb-sub">${r.exact} exact · ${r.results} results</span>
+        <span class="lb-name">${esc(r.name)}${esc(amharic(r.name))}</span>
+        <span class="lb-sub">${r.exact} exact · ${r.results} results · ${r.weeksWon} weeks won</span>
       </div>
       ${leader ? `<span class="lb-deco d1">🎉</span><span class="lb-deco d2">🎊</span><span class="lb-deco d3">✨</span><span class="lb-deco d4">🎈</span><span class="lb-king">👑</span>` : ""}
       ${last ? `<span class="lb-clown">🤡</span>` : ""}
@@ -601,9 +642,9 @@ function renderManage() {
     <div class="tabs">
       <button class="tab ${manageTab === "results" ? "active" : ""}" onclick="setManageTab('results')">Results</button>
       <button class="tab ${manageTab === "deadlines" ? "active" : ""}" onclick="setManageTab('deadlines')">Deadlines</button>
+      <button class="tab ${manageTab === "points" ? "active" : ""}" onclick="setManageTab('points')">Points</button>
       <button class="tab ${manageTab === "games" ? "active" : ""}" onclick="setManageTab('games')">Games</button>
       <button class="tab ${manageTab === "backfill" ? "active" : ""}" onclick="setManageTab('backfill')">Predictions</button>
-      <button class="tab ${manageTab === "points" ? "active" : ""}" onclick="setManageTab('points')">Points</button>
     </div>`;
 
   let body = "";
@@ -617,10 +658,10 @@ function renderManage() {
     body =
       `<p class="note">Every week starts <b>closed</b> — players can see the games but can't predict until you open the week with its toggle. You can also set per-game kickoff deadlines, or hit <b>Close now</b> to lock a game immediately.</p>` +
       deadlinesBody(playable);
-  } else if (manageTab === "games") {
-    body = gamesBody();
   } else if (manageTab === "points") {
     body = pointsBody(playable);
+  } else if (manageTab === "games") {
+    body = gamesBody();
   } else {
     const opts = players
       .map((p) => `<option value="${p.id}" ${p.id === backfillPlayerId ? "selected" : ""}>${esc(p.name)}</option>`)
@@ -652,40 +693,6 @@ function resultRowHTML(m) {
       <input type="number" min="0" max="99" id="ra-${m.id}" value="${m.away_score ?? ""}" style="width:42px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
       <button class="btn sm" onclick="setResult(${m.id})">${m.finished ? "Update" : "Set"}</button>
       ${m.finished ? `<button class="btn ghost sm" onclick="clearResult(${m.id})">Clear</button>` : ""}
-    </div>
-  </div>`;
-}
-
-/* ---- Points tab: correct / exact points for every game. Pre-filled with
-   the game's effective points (default 5·10, Big-6 15·25); Save writes a
-   per-game override, Reset removes it. Grouped by week like the other tabs. */
-function pointsBody(playable) {
-  const note = `<p class="note">Points for every game. Default is <b>correct 5 · exact 10</b>; Big-6 games (Arsenal, Chelsea, Liverpool, Man City, Man Utd, Spurs) default to <b>correct 15 · exact 25</b>. Edit any game below and hit <b>Save</b>; <b>Reset</b> returns it to its default. The tag shows whether a game is default, Big&nbsp;6, or custom.</p>`;
-  const list = sectionsOf(playable)
-    .map(
-      (s) =>
-        `<div class="section-title">${s.title}</div>` +
-        s.list.map(pointsRowHTML).join("")
-    )
-    .join("");
-  return note + list;
-}
-
-function pointsRowHTML(m) {
-  const pts = pointsFor(m);
-  const overridden = m.pts_exact != null || m.pts_result != null;
-  const tag = overridden ? "custom" : involvesBig6(m) ? "Big 6" : "default";
-  const numStyle = "width:46px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700";
-  return `<div class="card">
-    <div class="row-label">${manageLabel(m)} · <span class="muted">${tag}</span></div>
-    <div class="grow" style="font-size:14px;font-weight:600;margin-bottom:6px">${m.home_flag} ${esc(m.home_team)} <span class="muted">v</span> ${m.away_flag} ${esc(m.away_team)}</div>
-    <div class="row-mini">
-      <span class="muted" style="font-size:12px">Correct</span>
-      <input type="number" min="0" max="99" id="pr-${m.id}" value="${pts.RESULT}" style="${numStyle}">
-      <span class="muted" style="font-size:12px">Exact</span>
-      <input type="number" min="0" max="99" id="pe-${m.id}" value="${pts.EXACT}" style="${numStyle}">
-      <button class="btn sm grow" onclick="setPoints(${m.id})">Save</button>
-      ${overridden ? `<button class="btn ghost sm" onclick="clearPoints(${m.id})">Reset</button>` : ""}
     </div>
   </div>`;
 }
@@ -732,6 +739,48 @@ function deadlineRowHTML(m) {
       <button class="btn sm" onclick="setKickoff(${m.id})">Set</button>
       <button class="btn ghost sm" onclick="closeNow(${m.id})">Close now</button>
       ${m.kickoff ? `<button class="btn ghost sm" onclick="clearKickoff(${m.id})">✕</button>` : ""}
+    </div>
+  </div>`;
+}
+
+/* ---- Points tab: set what each game is worth, in advance ----
+   Values are saved on the match itself (pts_exact / pts_result) so every
+   player sees them on the fixture card while they are predicting.
+   A game with nothing set is worth the defaults (20 / 15). ---- */
+function pointsBody(playable) {
+  return `<p class="note">Set what a game is worth <b>before</b> the week opens — every player sees the value on the fixture card while they predict. Leave a game alone and it is worth the standard <b>${POINTS.EXACT}</b> exact / <b>${POINTS.RESULT}</b> result. Changing points on a game that is already scored re-calculates the leaderboard.</p>` +
+    sectionsOf(playable)
+      .map((s) => {
+        const bulk = `<div class="card">
+          <div class="row-label">Apply to every game in ${esc(s.title)}</div>
+          <div class="row-mini">
+            <span class="muted" style="font-size:12px">Exact</span>
+            <input type="number" min="0" max="999" id="bpe-${s.comp}-${s.week}" placeholder="${POINTS.EXACT}" style="width:56px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
+            <span class="muted" style="font-size:12px">Result</span>
+            <input type="number" min="0" max="999" id="bpr-${s.comp}-${s.week}" placeholder="${POINTS.RESULT}" style="width:56px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
+            <button class="btn sm grow" onclick="setWeekPoints('${s.comp}', ${s.week})">Apply to week</button>
+            <button class="btn ghost sm" onclick="resetWeekPoints('${s.comp}', ${s.week})">Reset</button>
+          </div>
+        </div>`;
+        return `<div class="section-title">${s.title}</div>` + bulk +
+          s.list.map(pointsRowHTML).join("");
+      })
+      .join("");
+}
+
+function pointsRowHTML(m) {
+  const P = ptsFor(m);
+  const custom = hasCustomPoints(m);
+  return `<div class="card">
+    <div class="row-label">${manageLabel(m)}${m.finished ? " · scored ✓" : ""}${custom ? " · ⭐ special" : ""}</div>
+    <div class="grow" style="font-size:14px;font-weight:600;margin-bottom:6px">${m.home_flag} ${esc(m.home_team)} <span class="muted">v</span> ${m.away_flag} ${esc(m.away_team)}</div>
+    <div class="row-mini">
+      <span class="muted" style="font-size:12px">Exact</span>
+      <input type="number" min="0" max="999" id="pe-${m.id}" value="${P.exact}" style="width:56px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
+      <span class="muted" style="font-size:12px">Result</span>
+      <input type="number" min="0" max="999" id="pr-${m.id}" value="${P.result}" style="width:56px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
+      <button class="btn sm grow" onclick="setPoints(${m.id})">Save</button>
+      ${custom ? `<button class="btn ghost sm" onclick="resetPoints(${m.id})">Reset</button>` : ""}
     </div>
   </div>`;
 }
@@ -877,19 +926,64 @@ window.clearResult = async (matchId) => {
   } catch (e) { alert(e.message); }
 };
 
-// ---- Custom per-game points (override the default / Big-6 values) ----
+// ---- Points per game ----
+// reads a points input; returns null if blank or out of range
+function pts(id) {
+  const el = document.getElementById(id);
+  if (!el) return null;
+  const v = el.value;
+  if (v === "") return null;
+  const n = Math.trunc(Number(v));
+  return Number.isFinite(n) && n >= 0 && n <= 999 ? n : null;
+}
+
 window.setPoints = async (matchId) => {
-  const r = num(`pr-${matchId}`), e = num(`pe-${matchId}`);
-  if (r === null || e === null) { alert("Enter both point values (0–99)"); return; }
+  const e = pts(`pe-${matchId}`), r = pts(`pr-${matchId}`);
+  if (e === null || r === null) { alert("Enter both point values (0–999)."); return; }
   try {
-    await dbf.collection("matches").doc(String(matchId)).update({ pts_result: r, pts_exact: e });
+    await dbf.collection("matches").doc(String(matchId)).update({ pts_exact: e, pts_result: r });
     await refresh();
   } catch (err) { alert(err.message); }
 };
 
-window.clearPoints = async (matchId) => {
+// back to the house default (20 / 15) by removing the override
+window.resetPoints = async (matchId) => {
   try {
-    await dbf.collection("matches").doc(String(matchId)).update({ pts_result: null, pts_exact: null });
+    await dbf.collection("matches").doc(String(matchId)).update({ pts_exact: null, pts_result: null });
+    await refresh();
+  } catch (err) { alert(err.message); }
+};
+
+window.setWeekPoints = async (comp, week) => {
+  const e = pts(`bpe-${comp}-${week}`), r = pts(`bpr-${comp}-${week}`);
+  if (e === null || r === null) { alert("Enter both point values (0–999) for the week."); return; }
+  const targets = matches.filter(
+    (m) => m.comp === comp && m.week === week && m.home_team !== "TBD" && m.away_team !== "TBD"
+  );
+  if (!targets.length) return;
+  if (!confirm(`Set all ${targets.length} game(s) in Week ${week} to ${e} exact / ${r} result?`)) return;
+  try {
+    const batch = dbf.batch();
+    for (const m of targets) {
+      batch.update(dbf.collection("matches").doc(String(m.id)), { pts_exact: e, pts_result: r });
+    }
+    await batch.commit();
+    await refresh();
+  } catch (err) { alert(err.message); }
+};
+
+window.resetWeekPoints = async (comp, week) => {
+  const targets = matches.filter(
+    (m) => m.comp === comp && m.week === week && m.home_team !== "TBD" && m.away_team !== "TBD"
+  );
+  if (!targets.length) return;
+  if (!confirm(`Reset all ${targets.length} game(s) in Week ${week} back to ${POINTS.EXACT} exact / ${POINTS.RESULT} result?`)) return;
+  try {
+    const batch = dbf.batch();
+    for (const m of targets) {
+      batch.update(dbf.collection("matches").doc(String(m.id)), { pts_exact: null, pts_result: null });
+    }
+    await batch.commit();
     await refresh();
   } catch (err) { alert(err.message); }
 };
