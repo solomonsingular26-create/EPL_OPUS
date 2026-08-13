@@ -14,43 +14,44 @@ const PLAYERS = ["Solar", "DKC", "Dere", "Ermo", "Costa", "Mab"];
    ===================================================================== */
 
 /* ---- scoring rules ----
-   Points depend on WHO is playing. The Big 4 are worth more, and when two
+   Points depend on WHO is playing. The Big 5 are worth more, and when two
    of them meet the game is worth the most of all.
 
-     neither side is Big 4 ....  5 for the result / 15 for the exact score
-     one Big 4 side ..........  15 for the result / 25 for the exact score
-     Big 4 v Big 4 ...........  20 for the result / 30 for the exact score
+     neither side is Big 5 ....  5 for the result / 15 for the exact score
+     one Big 5 side ..........  15 for the result / 25 for the exact score
+     Big 5 v Big 5 ...........  20 for the result / 30 for the exact score
 
    Any single game can still be overridden by hand from Manage -> Points
    (that writes pts_exact / pts_result onto the match and wins over the
    tiers below). A wrong result is always 0. */
 const POINTS = { MISS: 0 };
 
-/* the Big 4. Every spelling that appears in the fixture list is listed so
+/* the Big 5. Every spelling that appears in the fixture list is listed so
    "Man Utd" and "Manchester United" both count. Matching ignores case. */
-const BIG4 = [
+const BIG5 = [
   "arsenal",
+  "liverpool",
   "man utd", "man united", "manchester united", "manchester utd",
   "man city", "manchester city",
   "chelsea",
 ];
-function isBig4(team) {
-  return BIG4.includes(String(team || "").trim().toLowerCase());
+function isBig5(team) {
+  return BIG5.includes(String(team || "").trim().toLowerCase());
 }
 
-/* the three tiers, picked by how many Big 4 sides are in the game */
+/* the three tiers, picked by how many Big 5 sides are in the game */
 const TIERS = {
   0: { exact: 15, result: 5,  label: "" },
-  1: { exact: 25, result: 15, label: "BIG 4" },
-  2: { exact: 30, result: 20, label: "BIG 4 CLASH" },
+  1: { exact: 25, result: 15, label: "BIG 5" },
+  2: { exact: 30, result: 20, label: "BIG 5 CLASH" },
 };
 function tierOf(m) {
-  const n = (isBig4(m && m.home_team) ? 1 : 0) + (isBig4(m && m.away_team) ? 1 : 0);
+  const n = (isBig5(m && m.home_team) ? 1 : 0) + (isBig5(m && m.away_team) ? 1 : 0);
   return TIERS[n];
 }
 
 /* Points actually on offer for one game: a hand-set override if there is
-   one, otherwise the Big 4 tier. */
+   one, otherwise the Big 5 tier. */
 function ptsFor(m) {
   // NOTE: null/undefined/"" must fall back to the tier, NOT to 0.
   // (Number(null) is 0, so the empty check has to come first.)
@@ -448,7 +449,7 @@ function matchRowHTML(m) {
     (m.slot_label ? ` · ${esc(m.slot_label)}` : "") + kickoff;
 
   // points on offer — always visible, so everyone knows the stakes BEFORE
-  // they predict. Big 4 games get a highlighted bar and a tag.
+  // they predict. Big 5 games get a highlighted bar and a tag.
   const P = ptsFor(m);
   const t = tierOf(m);
   const custom = hasCustomPoints(m);
@@ -781,7 +782,7 @@ function deadlineRowHTML(m) {
    player sees them on the fixture card while they are predicting.
    A game with nothing set is worth the defaults (20 / 15). ---- */
 function pointsBody(playable) {
-  return `<p class="note">Points are worked out automatically from who is playing: <b>${TIERS[0].exact}/${TIERS[0].result}</b> for a normal game, <b>${TIERS[1].exact}/${TIERS[1].result}</b> when a Big 4 side (Arsenal, Man Utd, Man City, Chelsea) is involved, <b>${TIERS[2].exact}/${TIERS[2].result}</b> when two Big 4 sides meet — shown as <i>exact / result</i>. Every player sees the value on the fixture card while they predict. Override any single game below; <b>Reset</b> puts it back on its tier. Changing points on a game that is already scored re-calculates the leaderboard.</p>` +
+  return `<p class="note">Points are worked out automatically from who is playing: <b>${TIERS[0].exact}/${TIERS[0].result}</b> for a normal game, <b>${TIERS[1].exact}/${TIERS[1].result}</b> when a Big 5 side (Arsenal, Liverpool, Man Utd, Man City, Chelsea) is involved, <b>${TIERS[2].exact}/${TIERS[2].result}</b> when two Big 5 sides meet — shown as <i>exact / result</i>. Every player sees the value on the fixture card while they predict. Override any single game below; <b>Reset</b> puts it back on its tier. Changing points on a game that is already scored re-calculates the leaderboard.</p>` +
     sectionsOf(playable)
       .map((s) => {
         const bulk = `<div class="card">
@@ -1010,7 +1011,7 @@ window.resetWeekPoints = async (comp, week) => {
     (m) => m.comp === comp && m.week === week && m.home_team !== "TBD" && m.away_team !== "TBD"
   );
   if (!targets.length) return;
-  if (!confirm(`Reset all ${targets.length} game(s) in Week ${week} back to their automatic Big 4 tier value?`)) return;
+  if (!confirm(`Reset all ${targets.length} game(s) in Week ${week} back to their automatic Big 5 tier value?`)) return;
   try {
     const batch = dbf.batch();
     for (const m of targets) {
