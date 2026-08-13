@@ -14,30 +14,61 @@ const PLAYERS = ["Solar", "DKC", "Dere", "Ermo", "Costa", "Mab"];
    ===================================================================== */
 
 /* ---- scoring rules ----
-   These are the DEFAULTS. Any individual game can override them from
-   Manage -> Points (stored on the match as pts_exact / pts_result).
-   Games with nothing set fall back to the numbers below. */
-const POINTS = { EXACT: 20, RESULT: 15, MISS: 0 };
+   Points depend on WHO is playing. The Big 4 are worth more, and when two
+   of them meet the game is worth the most of all.
 
-/* Points actually on offer for one game. Falls back to the defaults above
-   whenever a match has no custom value (so old data keeps working). */
+     neither side is Big 4 ....  5 for the result / 15 for the exact score
+     one Big 4 side ..........  15 for the result / 25 for the exact score
+     Big 4 v Big 4 ...........  20 for the result / 30 for the exact score
+
+   Any single game can still be overridden by hand from Manage -> Points
+   (that writes pts_exact / pts_result onto the match and wins over the
+   tiers below). A wrong result is always 0. */
+const POINTS = { MISS: 0 };
+
+/* the Big 4. Every spelling that appears in the fixture list is listed so
+   "Man Utd" and "Manchester United" both count. Matching ignores case. */
+const BIG4 = [
+  "arsenal",
+  "man utd", "man united", "manchester united", "manchester utd",
+  "man city", "manchester city",
+  "chelsea",
+];
+function isBig4(team) {
+  return BIG4.includes(String(team || "").trim().toLowerCase());
+}
+
+/* the three tiers, picked by how many Big 4 sides are in the game */
+const TIERS = {
+  0: { exact: 15, result: 5,  label: "" },
+  1: { exact: 25, result: 15, label: "BIG 4" },
+  2: { exact: 30, result: 20, label: "BIG 4 CLASH" },
+};
+function tierOf(m) {
+  const n = (isBig4(m && m.home_team) ? 1 : 0) + (isBig4(m && m.away_team) ? 1 : 0);
+  return TIERS[n];
+}
+
+/* Points actually on offer for one game: a hand-set override if there is
+   one, otherwise the Big 4 tier. */
 function ptsFor(m) {
-  // NOTE: null/undefined/"" must fall back to the default, NOT to 0.
+  // NOTE: null/undefined/"" must fall back to the tier, NOT to 0.
   // (Number(null) is 0, so the empty check has to come first.)
+  const t = tierOf(m);
   const one = (v, dflt) => {
     if (v === null || v === undefined || v === "") return dflt;
     const n = Number(v);
     return Number.isFinite(n) && n >= 0 ? n : dflt;
   };
   return {
-    exact: one(m && m.pts_exact, POINTS.EXACT),
-    result: one(m && m.pts_result, POINTS.RESULT),
+    exact: one(m && m.pts_exact, t.exact),
+    result: one(m && m.pts_result, t.result),
   };
 }
-/* true when this game is worth something other than the house default */
+/* true when someone has hand-set this game away from its tier value */
 function hasCustomPoints(m) {
-  const p = ptsFor(m);
-  return p.exact !== POINTS.EXACT || p.result !== POINTS.RESULT;
+  const p = ptsFor(m), t = tierOf(m);
+  return p.exact !== t.exact || p.result !== t.result;
 }
 
 /* ---- competition (EPL only) ---- */
@@ -417,11 +448,13 @@ function matchRowHTML(m) {
     (m.slot_label ? ` · ${esc(m.slot_label)}` : "") + kickoff;
 
   // points on offer — always visible, so everyone knows the stakes BEFORE
-  // they predict. Highlighted when this game is worth more than the default.
+  // they predict. Big 4 games get a highlighted bar and a tag.
   const P = ptsFor(m);
-  const bonus = hasCustomPoints(m);
-  const ptsBar = `<div class="pts-bar${bonus ? " bonus" : ""}">
-      ${bonus ? `<span class="pts-tag">⭐ SPECIAL</span>` : ""}
+  const t = tierOf(m);
+  const custom = hasCustomPoints(m);
+  const tag = custom ? "⭐ SPECIAL" : t.label ? `⭐ ${t.label}` : "";
+  const ptsBar = `<div class="pts-bar${tag ? " bonus" : ""}">
+      ${tag ? `<span class="pts-tag">${tag}</span>` : ""}
       <span class="pts-item"><b>${P.exact}</b> pts exact score</span>
       <span class="pts-dot">·</span>
       <span class="pts-item"><b>${P.result}</b> pts correct result</span>
@@ -532,7 +565,7 @@ function renderLeaderboard() {
   const medals = ["🥇", "🥈", "🥉"];
 
   const rowHTML = (r, i) => {
-    const leader = i === 0 && r.points > 0;
+    const leader = i === 0; // #1 is always the gold VIP/PRO card, even at 0 pts
     const last = n >= 4 && i === n - 1;
     const badge = i < medals.length ? medals[i] : String(i + 1);
     return `<div class="card lb-row ${leader ? "leader" : ""} ${last ? "last" : ""}">
@@ -748,16 +781,16 @@ function deadlineRowHTML(m) {
    player sees them on the fixture card while they are predicting.
    A game with nothing set is worth the defaults (20 / 15). ---- */
 function pointsBody(playable) {
-  return `<p class="note">Set what a game is worth <b>before</b> the week opens — every player sees the value on the fixture card while they predict. Leave a game alone and it is worth the standard <b>${POINTS.EXACT}</b> exact / <b>${POINTS.RESULT}</b> result. Changing points on a game that is already scored re-calculates the leaderboard.</p>` +
+  return `<p class="note">Points are worked out automatically from who is playing: <b>${TIERS[0].exact}/${TIERS[0].result}</b> for a normal game, <b>${TIERS[1].exact}/${TIERS[1].result}</b> when a Big 4 side (Arsenal, Man Utd, Man City, Chelsea) is involved, <b>${TIERS[2].exact}/${TIERS[2].result}</b> when two Big 4 sides meet — shown as <i>exact / result</i>. Every player sees the value on the fixture card while they predict. Override any single game below; <b>Reset</b> puts it back on its tier. Changing points on a game that is already scored re-calculates the leaderboard.</p>` +
     sectionsOf(playable)
       .map((s) => {
         const bulk = `<div class="card">
           <div class="row-label">Apply to every game in ${esc(s.title)}</div>
           <div class="row-mini">
             <span class="muted" style="font-size:12px">Exact</span>
-            <input type="number" min="0" max="999" id="bpe-${s.comp}-${s.week}" placeholder="${POINTS.EXACT}" style="width:56px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
+            <input type="number" min="0" max="999" id="bpe-${s.comp}-${s.week}" placeholder="exact" style="width:56px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
             <span class="muted" style="font-size:12px">Result</span>
-            <input type="number" min="0" max="999" id="bpr-${s.comp}-${s.week}" placeholder="${POINTS.RESULT}" style="width:56px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
+            <input type="number" min="0" max="999" id="bpr-${s.comp}-${s.week}" placeholder="result" style="width:56px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
             <button class="btn sm grow" onclick="setWeekPoints('${s.comp}', ${s.week})">Apply to week</button>
             <button class="btn ghost sm" onclick="resetWeekPoints('${s.comp}', ${s.week})">Reset</button>
           </div>
@@ -772,7 +805,7 @@ function pointsRowHTML(m) {
   const P = ptsFor(m);
   const custom = hasCustomPoints(m);
   return `<div class="card">
-    <div class="row-label">${manageLabel(m)}${m.finished ? " · scored ✓" : ""}${custom ? " · ⭐ special" : ""}</div>
+    <div class="row-label">${manageLabel(m)}${m.finished ? " · scored ✓" : ""}${custom ? " · ⭐ overridden" : tierOf(m).label ? ` · ${tierOf(m).label}` : ""}</div>
     <div class="grow" style="font-size:14px;font-weight:600;margin-bottom:6px">${m.home_flag} ${esc(m.home_team)} <span class="muted">v</span> ${m.away_flag} ${esc(m.away_team)}</div>
     <div class="row-mini">
       <span class="muted" style="font-size:12px">Exact</span>
@@ -977,7 +1010,7 @@ window.resetWeekPoints = async (comp, week) => {
     (m) => m.comp === comp && m.week === week && m.home_team !== "TBD" && m.away_team !== "TBD"
   );
   if (!targets.length) return;
-  if (!confirm(`Reset all ${targets.length} game(s) in Week ${week} back to ${POINTS.EXACT} exact / ${POINTS.RESULT} result?`)) return;
+  if (!confirm(`Reset all ${targets.length} game(s) in Week ${week} back to their automatic Big 4 tier value?`)) return;
   try {
     const batch = dbf.batch();
     for (const m of targets) {
