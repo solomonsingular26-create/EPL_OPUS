@@ -154,8 +154,29 @@ if (!keysMissing) {
   dbf = firebase.firestore();
 }
 
+/* ---- active / inactive players ----
+   A player doc can carry an `active` flag. Anything that is not explicitly
+   false counts as active, so existing players keep working with no
+   migration needed. Switching someone OFF only HIDES them — every
+   prediction they have made stays in the database untouched, so switching
+   them back ON restores their points, exact/result counts, weeks won and
+   rank exactly as they were. */
+function isActive(p) {
+  return !!p && p.active !== false;
+}
+function activePlayers() {
+  return players.filter(isActive);
+}
+function playerById(id) {
+  return players.find((p) => p.id === id) || null;
+}
+// true when the person using this phone is allowed to predict
+function amActive() {
+  return !!myId && isActive(playerById(myId));
+}
+
 /* ---- app state ---- */
-let players = [];      // [{id, name}]
+let players = [];      // [{id, name, active}]
 let matches = [];      // every game added so far
 let predictions = [];  // every prediction by everyone
 let openWeeks = new Set(); // "comp|week" keys the admin has opened for picks
@@ -342,7 +363,12 @@ async function load() {
     dbf.collection("predictions").get(),
     dbf.collection("meta").doc("openWeeks").get(),
   ]);
-  players = pSnap.docs.map((d) => ({ id: d.id, name: d.data().name }));
+  players = pSnap.docs.map((d) => ({
+    id: d.id,
+    name: d.data().name,
+    // missing flag = active, so nobody is switched off by this update
+    active: d.data().active !== false,
+  }));
   players.sort((a, b) => a.name.localeCompare(b.name));
   matches = mSnap.docs.map((d) => d.data());
   matches.sort((a, b) => a.ordering - b.ordering);
@@ -384,12 +410,20 @@ function myPredFor(matchId) {
 
 function playerBarHTML() {
   if (myId && myName) {
+    // switched off by the admin — say so plainly and offer a way out
+    if (!amActive()) {
+      return `<div class="card playerbar off">
+        <div><b>${esc(myName)}</b> — predictions turned off 🔒</div>
+        <button class="link" onclick="clearPlayer()">switch</button>
+      </div>`;
+    }
     return `<div class="card playerbar">
       <div>Predicting as <b>${esc(myName)}</b></div>
       <button class="link" onclick="clearPlayer()">switch</button>
     </div>`;
   }
-  const chips = players
+  // switched-off players are not offered in the picker
+  const chips = activePlayers()
     .map((p) => `<button class="chip" onclick="selectPlayer('${p.id}','${esc(p.name)}')">${esc(p.name)}</button>`)
     .join("");
   return `<div class="card">
@@ -406,7 +440,8 @@ function matchRowHTML(m) {
   const closed = isClosed(m); // past its kickoff/deadline
   const frozen = isExcluded(m); // not counted in the leaderboard
   const notOpen = !isWeekOpen(m); // week not activated by the admin yet
-  const locked = m.finished || isTbd || !!mine || closed || frozen || notOpen;
+  const offPlayer = !!myId && !amActive(); // this player is switched off
+  const locked = m.finished || isTbd || !!mine || closed || frozen || notOpen || offPlayer;
 
   const result = m.finished
     ? `<div class="result"><div>${m.home_score}</div><div>${m.away_score}</div></div>`
@@ -429,6 +464,8 @@ function matchRowHTML(m) {
     foot = `<span class="foot-left">teams TBD</span>`;
   } else if (!myId) {
     foot = `<span class="foot-left">pick who you are ↑</span>`;
+  } else if (offPlayer) {
+    foot = `<span class="locked">predictions turned off 🔒</span>`;
   } else if (mine) {
     foot = `<span class="locked">locked 🔒</span>`;
   } else if (closed) {
@@ -504,8 +541,11 @@ function buildLeaderboard() {
       .filter((m) => m.finished && !isExcluded(m) && m.home_score != null && m.away_score != null)
       .map((m) => [m.id, m])
   );
+  // only players who are switched ON get a row. Predictions belonging to a
+  // switched-off player find no row below and are skipped — they are never
+  // deleted, so turning the player back on brings every point back.
   const rows = new Map();
-  for (const p of players) rows.set(p.id, {
+  for (const p of activePlayers()) rows.set(p.id, {
     name: p.name,
     points: 0, exact: 0, results: 0, scored: 0, weeksWon: 0,
   });
@@ -679,6 +719,7 @@ function renderManage() {
       <button class="tab ${manageTab === "points" ? "active" : ""}" onclick="setManageTab('points')">Points</button>
       <button class="tab ${manageTab === "games" ? "active" : ""}" onclick="setManageTab('games')">Games</button>
       <button class="tab ${manageTab === "backfill" ? "active" : ""}" onclick="setManageTab('backfill')">Predictions</button>
+      <button class="tab ${manageTab === "players" ? "active" : ""}" onclick="setManageTab('players')">Players</button>
     </div>`;
 
   let body = "";
@@ -696,9 +737,13 @@ function renderManage() {
     body = pointsBody(playable);
   } else if (manageTab === "games") {
     body = gamesBody();
+  } else if (manageTab === "players") {
+    body = playersBody();
   } else {
+    // switched-off players stay in this list so you can still fix their
+    // history; they're just flagged
     const opts = players
-      .map((p) => `<option value="${p.id}" ${p.id === backfillPlayerId ? "selected" : ""}>${esc(p.name)}</option>`)
+      .map((p) => `<option value="${p.id}" ${p.id === backfillPlayerId ? "selected" : ""}>${esc(p.name)}${isActive(p) ? "" : " (off)"}</option>`)
       .join("");
     body =
       `<p class="note">Enter past predictions for someone. Pick the player, then fill in their scores.</p>
@@ -711,7 +756,7 @@ function renderManage() {
       <div class="big-title" style="font-size:22px;margin:0">Manage</div>
       <button class="btn ghost sm" onclick="lockManage()">🔒 Lock</button>
     </div>
-    ${weekSelectHTML()}${tabs}${body}`;
+    ${manageTab === "players" ? "" : weekSelectHTML()}${tabs}${body}`;
 }
 
 function manageLabel(m) {
@@ -872,6 +917,64 @@ function gameEditRowHTML(m) {
   </div>`;
 }
 
+/* ---- Players tab: switch a player's predicting ON or OFF ----
+   OFF means: their name is not offered on Fixtures, they cannot lock in a
+   pick, and they do not appear on the Table or Opta Stats. Nothing is
+   deleted — every prediction they already made stays in the database, so
+   switching them back ON restores their points and rank exactly. ---- */
+
+// points / picks for ANY player id, switched on or off (the leaderboard
+// itself only builds rows for active players, so this is separate)
+function tallyFor(playerId) {
+  const finished = new Map(
+    matches
+      .filter((m) => m.finished && !isExcluded(m) && m.home_score != null && m.away_score != null)
+      .map((m) => [m.id, m])
+  );
+  let points = 0, picks = 0, scored = 0;
+  for (const pr of predictions) {
+    if (pr.player_id !== playerId) continue;
+    picks++;
+    const m = finished.get(pr.match_id);
+    if (!m) continue;
+    scored++;
+    points += scorePrediction(pr.home_score, pr.away_score, m.home_score, m.away_score, m).pts;
+  }
+  return { points, picks, scored };
+}
+
+function playersBody() {
+  const on = players.filter(isActive).length;
+  const off = players.length - on;
+
+  const rows = players
+    .map((p) => {
+      const t = tallyFor(p.id);
+      const active = isActive(p);
+      const btn = active
+        ? `<button class="btn ghost sm" onclick="togglePlayerActive('${p.id}')">🔕 Turn OFF</button>`
+        : `<button class="btn sm" onclick="togglePlayerActive('${p.id}')">🔔 Turn ON</button>`;
+      return `<div class="card player-row${active ? "" : " off"}">
+        <div class="row-mini">
+          ${jerseyHTML(p.name)}
+          <div class="grow">
+            <div style="font-weight:700;font-size:15px">${esc(p.name)}${esc(amharic(p.name))}</div>
+            <div class="muted" style="font-size:12px">
+              ${active ? "Predicting · on the Table" : "Switched off · hidden from the Table"}
+              · ${t.points} pts · ${t.picks} pick${t.picks === 1 ? "" : "s"} saved
+            </div>
+          </div>
+          ${btn}
+        </div>
+      </div>`;
+    })
+    .join("");
+
+  return `<p class="note">Turn a player <b>OFF</b> to stop them predicting and take them off the Table and Opta Stats. <b>Nothing is deleted</b> — their saved predictions stay exactly as they are, so turning them back <b>ON</b> restores their points, exact/result counts and rank. Note that while a player is off, their picks are left out of the weekly winner count too.</p>
+    <p class="note"><b>${on}</b> predicting · <b>${off}</b> switched off</p>
+    ${players.length ? rows : `<p class="note">No players yet.</p>`}`;
+}
+
 function backfillRowHTML(m) {
   const mine = predictions.find((p) => p.player_id === backfillPlayerId && p.match_id === m.id);
   return `<div class="card">
@@ -921,7 +1024,7 @@ window.addPlayer = async () => {
     const ref = dbf.collection("players").doc(id);
     const snap = await ref.get();
     if (snap.exists) { alert("That name is taken."); return; }
-    await ref.set({ name: clean });
+    await ref.set({ name: clean, active: true });
     await load();
     selectPlayer(id, clean);
   } catch (e) { alert(e.message); }
@@ -930,6 +1033,7 @@ window.addPlayer = async () => {
 window.savePick = async (matchId) => {
   const h = num(`h-${matchId}`), a = num(`a-${matchId}`);
   if (h === null || a === null) { document.getElementById(`foot-${matchId}`).innerHTML = '<span class="pts-miss">enter both</span>'; return; }
+  if (!amActive()) { await refresh(); return; } // player switched off — refuse
   const m = matches.find((x) => x.id === matchId);
   if (m && (isClosed(m) || isExcluded(m) || !isWeekOpen(m))) { // deadline passed, frozen, or week not opened — refuse
     await refresh();
@@ -1148,6 +1252,23 @@ window.saveBackfill = async (matchId) => {
 window.clearBackfill = async (matchId) => {
   try {
     await dbf.collection("predictions").doc(`${backfillPlayerId}_${matchId}`).delete();
+    await refresh();
+  } catch (e) { alert(e.message); }
+};
+
+/* Flip a player between predicting and switched off. This writes a single
+   `active` flag on the player doc and touches nothing else — predictions,
+   results and points are all left alone. */
+window.togglePlayerActive = async (playerId) => {
+  const p = playerById(playerId);
+  if (!p) return;
+  const next = !isActive(p);
+  const msg = next
+    ? `Turn ${p.name} back ON? They can predict again and their existing points come straight back onto the Table.`
+    : `Turn ${p.name} OFF? They won't be able to predict and they'll disappear from the Table and Opta Stats. Their saved predictions are kept, so you can turn them back on at any time.`;
+  if (!confirm(msg)) return;
+  try {
+    await dbf.collection("players").doc(playerId).set({ active: next }, { merge: true });
     await refresh();
   } catch (e) { alert(e.message); }
 };
