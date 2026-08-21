@@ -14,12 +14,12 @@ const PLAYERS = ["Solar", "DKC", "Dere", "Ermo", "Costa", "Mab"];
    ===================================================================== */
 
 /* ---- scoring rules ----
-   Points depend on WHO is playing. The Big 5 are worth more, and when two
-   of them meet the game is worth the most of all.
+   Points depend on WHO is playing. Any game involving a Big 5 side is
+   worth more.
 
-     neither side is Big 5 ....  5 for the result / 15 for the exact score
-     one Big 5 side ..........  15 for the result / 25 for the exact score
-     Big 5 v Big 5 ...........  20 for the result / 30 for the exact score
+     neither side is Big 5 ....  3 for the result / 5 for the exact score
+     one Big 5 side ..........  5 for the result / 10 for the exact score
+     Big 5 v Big 5 ...........  5 for the result / 10 for the exact score
 
    Any single game can still be overridden by hand from Manage -> Points
    (that writes pts_exact / pts_result onto the match and wins over the
@@ -39,11 +39,13 @@ function isBig5(team) {
   return BIG5.includes(String(team || "").trim().toLowerCase());
 }
 
-/* the three tiers, picked by how many Big 5 sides are in the game */
+/* the three tiers, picked by how many Big 5 sides are in the game.
+   Tiers 1 and 2 pay the same — a clash keeps its own label, not its own
+   price. */
 const TIERS = {
-  0: { exact: 15, result: 5,  label: "" },
-  1: { exact: 25, result: 15, label: "BIG 5" },
-  2: { exact: 30, result: 20, label: "BIG 5 CLASH" },
+  0: { exact: 5,  result: 3, label: "" },
+  1: { exact: 10, result: 5, label: "BIG 5" },
+  2: { exact: 10, result: 5, label: "BIG 5 CLASH" },
 };
 function tierOf(m) {
   const n = (isBig5(m && m.home_team) ? 1 : 0) + (isBig5(m && m.away_team) ? 1 : 0);
