@@ -276,7 +276,68 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .add-grid { display: grid; grid-template-columns: 1fr 90px; gap: 6px; margin-top: 4px; }
 .add-grid input { border: 1px solid var(--line); border-radius: 8px; padding: 7px; font-size: 14px; text-align: center; font-weight: 700; }
 
-/* ---- OPTA STATS ---- */
+/* ---- OPTA STATS: weekly winner + weekly ranking table ---- */
+
+/* "no results yet" placeholder */
+.opta-empty { text-align: center; color: var(--muted); font-weight: 700; font-size: 14px; }
+
+/* winner card — gold, same family as the leaderboard leader card */
+.opta-winner {
+  background:
+    radial-gradient(circle at 82% 24%, rgba(255,255,255,.6) 0 16px, transparent 38px),
+    linear-gradient(135deg, #fffbe6 0%, #fde68a 48%, #f9c22e 100%);
+  border: 2px solid #f59e0b;
+  box-shadow: 0 2px 10px rgba(234, 179, 8, .4);
+}
+.ow-label {
+  font-size: 10px; font-weight: 800; letter-spacing: 2px;
+  text-transform: uppercase; color: #92400e; margin-bottom: 6px;
+}
+.ow-body { display: flex; align-items: center; gap: 10px; }
+.ow-body .jersey { width: 42px; height: 42px; }
+.ow-main { flex: 1; min-width: 0; }
+.ow-name {
+  font-size: 18px; font-weight: 800; line-height: 1.15; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ow-sub { font-size: 12px; font-style: italic; font-weight: 500; color: #713f12; }
+.ow-pts {
+  display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0;
+  font-size: 30px; font-weight: 800; line-height: 1.05; color: #d97706;
+}
+.ow-pts span { font-size: 9px; font-weight: 800; letter-spacing: 2px; color: #92400e; }
+
+/* the weekly ranking table */
+.opta-tablecard { padding: 4px 6px; }
+.opta-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.opta-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.opta-table th {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--muted); text-align: center; padding: 9px 4px 7px;
+  border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+.opta-table td {
+  text-align: center; padding: 10px 4px; font-weight: 700;
+  border-bottom: 1px solid #f1f5f9; white-space: nowrap;
+}
+.opta-table tbody tr:last-child td { border-bottom: none; }
+.opta-table .c-rank { width: 26px; color: var(--muted); font-weight: 800; }
+.opta-table .c-name {
+  text-align: left; font-weight: 800; font-size: 14px;
+  max-width: 130px; overflow: hidden; text-overflow: ellipsis;
+}
+.opta-table td.c-e { color: var(--accent); }
+.opta-table td.c-r { color: var(--gold); }
+.opta-table td.c-m { color: #94a3b8; }
+.opta-table td.c-hit { font-weight: 800; color: var(--blue); }
+.opta-table td.c-pts { font-size: 16px; font-weight: 800; }
+/* week leader row */
+.opta-table tr.top td { background: #fffbeb; }
+.opta-table tr.top td.c-rank,
+.opta-table tr.top td.c-pts { color: #b45309; }
+/* didn't predict that week */
+.opta-table tr.nopick td { opacity: .5; }
+
 .opta-title {
   display: inline-block; background: var(--ucl-a); color: #fff;
   font-size: 13px; font-weight: 800; letter-spacing: 3px;

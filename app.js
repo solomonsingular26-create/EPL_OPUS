@@ -581,8 +581,17 @@ function buildLeaderboard() {
     }
   }
 
+  /* RANKING ORDER
+     1. most points
+     2. tie on points -> more EXACT scores ranks first
+     3. still level -> more correct results
+     4. still level -> name, so the order never jumps around */
   return [...rows.values()].sort(
-    (a, b) => b.points - a.points || b.exact - a.exact || a.name.localeCompare(b.name)
+    (a, b) =>
+      b.points - a.points ||
+      b.exact - a.exact ||
+      b.results - a.results ||
+      a.name.localeCompare(b.name)
   );
 }
 
@@ -628,18 +637,13 @@ function renderLeaderboard() {
   if (n === 0) {
     body = `<p class="note">No players yet. Add yourself on the Fixtures tab.</p>`;
   } else {
-    // tiers: 1 = VIP/PRO · 2-3 = TOP · middle = MID TABLE · last = QIX
+    // Two gridlines only: VIP / PRO at the top and QIX at the bottom.
+    // Everyone in between runs as ONE unbroken block — the old TOP and
+    // MID TABLE headings are gone. The cards themselves are unchanged.
     const parts = [];
     parts.push(`<div class="lb-tier">👑 VIP / PRO</div>`, rowHTML(rows[0], 0));
-    if (n > 1) {
-      parts.push(`<div class="lb-tier">TOP</div>`);
-      rows.slice(1, 3).forEach((r, k) => parts.push(rowHTML(r, k + 1)));
-    }
-    const midEnd = n >= 4 ? n - 1 : n;
-    if (midEnd > 3) {
-      parts.push(`<div class="lb-tier">MID TABLE</div>`);
-      rows.slice(3, midEnd).forEach((r, k) => parts.push(rowHTML(r, k + 3)));
-    }
+    const midEnd = n >= 4 ? n - 1 : n; // last place splits off only from 4 players up
+    rows.slice(1, midEnd).forEach((r, k) => parts.push(rowHTML(r, k + 1)));
     if (n >= 4) {
       parts.push(`<div class="lb-tier">QIX</div>`, rowHTML(rows[n - 1], n - 1));
     }
@@ -650,59 +654,180 @@ function renderLeaderboard() {
 }
 
 /* ---------------------------------------------------------------------
-   OPTA STATS — per-player analytics (exact / result / miss breakdown)
+   OPTA STATS — ONE WEEK at a time: that week's winner, then every
+   player ranked on that week alone with their hit rates.
    ------------------------------------------------------------------- */
+
+/* the week the Opta screen is showing. null = auto (latest week that has
+   results in). It is deliberately SEPARATE from `weekFilter` so changing
+   the week here doesn't move the Fixtures / Manage screens. */
+let statsWeek = null;
+
+// every week that has at least one counted, finished game
+function scoredWeeks() {
+  const set = new Set();
+  for (const m of matches) {
+    if (m.finished && !isExcluded(m) && m.home_score != null && m.away_score != null) set.add(m.week);
+  }
+  return [...set].sort((a, b) => a - b);
+}
+function latestScoredWeek() {
+  const ws = scoredWeeks();
+  return ws.length ? ws[ws.length - 1] : currentWeek();
+}
+function activeStatsWeek() {
+  return statsWeek === null ? latestScoredWeek() : statsWeek;
+}
+window.setStatsWeek = (v) => {
+  statsWeek = Math.max(1, Math.trunc(Number(v)) || 1);
+  render();
+};
+
+function statsWeekSelectHTML() {
+  const w = activeStatsWeek();
+  const maxWeek = matches.length ? Math.max(...matches.map((m) => m.week)) : 38;
+  const done = new Set(scoredWeeks());
+  let opts = "";
+  for (let n = 1; n <= maxWeek; n++) {
+    opts += `<option value="${n}" ${w === n ? "selected" : ""}>Week ${n}${done.has(n) ? " ✓" : ""}</option>`;
+  }
+  return `<div class="card weekbar">
+    <span class="weekbar-label">Gameweek</span>
+    <select class="select" style="margin:0;flex:1" onchange="setStatsWeek(this.value)">${opts}</select>
+  </div>`;
+}
+
+/* points / exact / result / miss for ONE week only. Same scoring rules as
+   the season table — just filtered down to that week's finished games. */
+function buildWeekBoard(week) {
+  const finished = new Map(
+    matches
+      .filter((m) => m.week === week && m.finished && !isExcluded(m) &&
+        m.home_score != null && m.away_score != null)
+      .map((m) => [m.id, m])
+  );
+
+  const rows = new Map();
+  for (const p of activePlayers()) rows.set(p.id, {
+    name: p.name, points: 0, exact: 0, results: 0, scored: 0,
+  });
+
+  for (const pr of predictions) {
+    const m = finished.get(pr.match_id);
+    const row = rows.get(pr.player_id);
+    if (!m || !row) continue;
+    row.scored++;
+    const s = scorePrediction(pr.home_score, pr.away_score, m.home_score, m.away_score, m);
+    row.points += s.pts;
+    if (s.kind === "exact") row.exact++;
+    else if (s.kind === "result") row.results++;
+  }
+
+  // same order as the season table: points, then exact, then results, then name
+  const list = [...rows.values()].sort(
+    (a, b) =>
+      b.points - a.points ||
+      b.exact - a.exact ||
+      b.results - a.results ||
+      a.name.localeCompare(b.name)
+  );
+  return { games: finished.size, rows: list };
+}
+
 function renderStats() {
   document.getElementById("header-stage").textContent = "OPTA STATS";
-  const rows = buildLeaderboard();
-  const scoredGames = matches.filter(
-    (m) => m.finished && !isExcluded(m) && m.home_score != null && m.away_score != null
-  ).length;
-
+  const week = activeStatsWeek();
+  const board = buildWeekBoard(week);
   const pct = (n, d) => (d > 0 ? Math.round((n / d) * 100) : 0);
-  const w = (n, d) => (d > 0 ? (n / d) * 100 : 0);
 
-  const cards =
-    rows.length === 0
-      ? `<p class="note">No players yet. Add yourself on the Fixtures tab.</p>`
-      : rows
-          .map((r) => {
-            const miss = r.scored - r.exact - r.results;
-            const acc = pct(r.exact + r.results, r.scored);          // % of picks that scored
-            const ppg = r.scored > 0 ? (r.points / r.scored).toFixed(1) : "0.0";
-            const bar = r.scored > 0
-              ? `<div class="stat-bar">
-                   <div class="seg-exact" style="width:${w(r.exact, r.scored)}%"></div>
-                   <div class="seg-result" style="width:${w(r.results, r.scored)}%"></div>
-                   <div class="seg-miss" style="width:${w(miss, r.scored)}%"></div>
-                 </div>`
-              : `<div class="stat-bar"></div>`;
-            return `<div class="card stat-row">
-              <div class="stat-head">
-                ${jerseyHTML(r.name)}
-                <div class="n">${esc(r.name)}</div>
-                <div class="pts">${r.points} <small>PTS</small></div>
-              </div>
-              ${bar}
-              <div class="legend">
-                <span><span class="dot" style="background:var(--accent)"></span>Exact ${r.exact}</span>
-                <span><span class="dot" style="background:var(--gold)"></span>Result ${r.results}</span>
-                <span><span class="dot" style="background:#cbd5e1"></span>Miss ${miss}</span>
-              </div>
-              <div class="stat-grid">
-                <div class="stat-cell exact"><div class="v">${pct(r.exact, r.scored)}%</div><div class="l">Exact rate</div></div>
-                <div class="stat-cell result"><div class="v">${acc}%</div><div class="l">Hit rate</div></div>
-                <div class="stat-cell"><div class="v">${ppg}</div><div class="l">Pts / game</div></div>
-                <div class="stat-cell"><div class="v">${r.scored}</div><div class="l">Games</div></div>
-              </div>
-            </div>`;
-          })
-          .join("");
+  if (board.rows.length === 0) {
+    screen.innerHTML = `
+      <div><span class="opta-title">📊 OPTA STATS</span></div>
+      ${statsWeekSelectHTML()}
+      <p class="note">No players yet. Add yourself on the Fixtures tab.</p>`;
+    return;
+  }
+
+  const played = board.rows.filter((r) => r.scored > 0);
+
+  /* ---- winner banner ---- */
+  let banner;
+  if (board.games === 0 || played.length === 0) {
+    banner = `<div class="card opta-empty">⏳ No results in for Week ${week} yet.</div>`;
+  } else {
+    // co-winners when the top points total is shared — matches how
+    // "weeks won" is counted on the season table
+    const top = played[0].points;
+    const winners = played.filter((r) => r.points === top);
+    const solo = winners.length === 1;
+    const sub = solo
+      ? `${winners[0].exact} exact · ${winners[0].results} results · ${pct(winners[0].exact + winners[0].results, winners[0].scored)}% hit rate`
+      : `tied on ${top} pts`;
+    banner = `<div class="card opta-winner">
+      <div class="ow-label">🏆 Week ${week} winner${solo ? "" : "s"}</div>
+      <div class="ow-body">
+        ${winners.map((r) => jerseyHTML(r.name)).join("")}
+        <div class="ow-main">
+          <div class="ow-name">${winners.map((r) => esc(r.name) + esc(amharic(r.name))).join(" & ")}</div>
+          <div class="ow-sub">${sub}</div>
+        </div>
+        <div class="ow-pts">${top}<span>PTS</span></div>
+      </div>
+    </div>`;
+  }
+
+  /* ---- ranking table ---- */
+  let prev = null, prevRank = 0;
+  const body = board.rows
+    .map((r, i) => {
+      const miss = r.scored - r.exact - r.results;
+      const hit = pct(r.exact + r.results, r.scored);
+      // players level on points AND exacts share a rank number
+      let rank;
+      if (prev && prev.points === r.points && prev.exact === r.exact) rank = prevRank;
+      else { rank = i + 1; prevRank = rank; }
+      prev = r;
+      const cls = [r.scored === 0 ? "nopick" : "", rank === 1 && r.points > 0 ? "top" : ""]
+        .filter(Boolean).join(" ");
+      return `<tr class="${cls}">
+        <td class="c-rank">${rank}</td>
+        <td class="c-name">${esc(r.name)}</td>
+        <td class="c-e">${r.exact}</td>
+        <td class="c-r">${r.results}</td>
+        <td class="c-m">${miss}</td>
+        <td class="c-hit">${r.scored > 0 ? hit + "%" : "—"}</td>
+        <td class="c-pts">${r.points}</td>
+      </tr>`;
+    })
+    .join("");
+
+  const table = `<div class="card opta-tablecard">
+    <div class="opta-scroll">
+      <table class="opta-table">
+        <thead>
+          <tr>
+            <th class="c-rank">#</th>
+            <th class="c-name">Player</th>
+            <th title="Exact scores">E</th>
+            <th title="Correct results">R</th>
+            <th title="Missed">M</th>
+            <th class="c-hit">Hit</th>
+            <th class="c-pts">Pts</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>
+  </div>`;
 
   screen.innerHTML = `
     <div><span class="opta-title">📊 OPTA STATS</span></div>
-    <p class="note">${scoredGames} game${scoredGames === 1 ? "" : "s"} scored so far. Exact rate = perfect scorelines; hit rate = exact + correct results.</p>
-    ${cards}`;
+    ${statsWeekSelectHTML()}
+    <p class="note">Week ${week} only — ${board.games} game${board.games === 1 ? "" : "s"} scored.
+      <b>E</b> exact scores · <b>R</b> correct results · <b>M</b> missed ·
+      <b>Hit</b> = (E + R) ÷ games predicted.</p>
+    ${banner}
+    ${table}`;
 }
 
 /* ---------------------------------------------------------------------
