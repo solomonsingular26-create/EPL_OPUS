@@ -171,7 +171,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .screen.dark .big-title { color: #fff; }
 .screen.dark .note { color: #cbd5e1; }
 
-/* ---- leaderboard: tiered cards (VIP/PRO · TOP · MID TABLE · QIX) ---- */
+/* ---- leaderboard: VIP/PRO at the top, one middle block, QIX at the bottom ---- */
 .lb-tier {
   color: #fff; font-size: 13px; font-weight: 800;
   letter-spacing: 3px; text-transform: uppercase;
@@ -215,6 +215,9 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   border: 3px solid #f59e0b;
   box-shadow: 0 0 18px rgba(245, 158, 11, .75), 0 2px 10px rgba(234, 179, 8, .45);
 }
+/* breathing room under the #1 card, so the PRO group is set apart from the
+   middle block by roughly the same gap the QIX heading creates at the bottom */
+.lb-row.leader { margin-bottom: 34px; }
 .lb-row.leader .lb-total { color: #d97706; font-size: 34px; }
 .lb-row.leader .lb-total span { color: #92400e; }
 .lb-row.leader .lb-sub { color: #713f12; }
