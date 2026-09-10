@@ -113,6 +113,29 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   color: #fff; border-radius: 5px; padding: 2px 5px; vertical-align: 1px;
 }
 .pill.epl { background: linear-gradient(135deg, var(--epl-a), var(--epl-b)); }
+.pill.ucl { background: linear-gradient(135deg, var(--ucl-a), #1b2a94); }
+
+/* ---- Champions League intro note on the UCL tab ---- */
+.note.ucl-note {
+  background: linear-gradient(135deg, rgba(4,13,62,.05), rgba(27,42,148,.08));
+  border: 1px solid rgba(4,13,62,.18); border-radius: 12px; padding: 10px 12px;
+}
+
+/* ---- Manage: which competition am I editing? ---- */
+.compswitch { display: flex; gap: 8px; margin: 12px 0 10px; }
+.compbtn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid var(--line); background: #fff; color: var(--muted);
+  border-radius: 12px; padding: 11px 8px; font-weight: 800; font-size: 14px; cursor: pointer;
+}
+.compbtn-n {
+  font-size: 10px; font-weight: 800; background: #f1f5f9; color: #64748b;
+  border-radius: 999px; padding: 2px 6px;
+}
+.compbtn.active { color: #fff; border-color: transparent; }
+.compbtn.active .compbtn-n { background: rgba(255,255,255,.25); color: #fff; }
+.compbtn.active.epl { background: linear-gradient(135deg, var(--epl-a), var(--epl-b)); }
+.compbtn.active.ucl { background: linear-gradient(135deg, var(--ucl-a), #1b2a94); }
 
 /* ---- match row ---- */
 .match { display: flex; align-items: center; gap: 10px; }
@@ -254,7 +277,7 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 .card.frozen { opacity: .5; }
 
 /* ---- manage ---- */
-/* six tabs won't fit on one phone row — let them wrap, three per row */
+/* seven tabs won't fit on one phone row — let them wrap, three per row */
 .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .tab { flex: 1 1 28%; border: 1px solid var(--line); border-radius: 10px; padding: 9px; font-weight: 700; font-size: 12px; background: #fff; color: var(--muted); cursor: pointer; }
 .tab.active { background: var(--green); border-color: var(--green); color: #fff; }
@@ -369,12 +392,12 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   position: fixed; left: 0; right: 0; bottom: 0;
   max-width: 480px; margin: 0 auto;
   background: #fff; border-top: 1px solid var(--line);
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
 }
 .nav-btn {
   background: none; border: none; cursor: pointer;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 10px 0; font-size: 12px; font-weight: 700; color: #94a3b8;
+  padding: 10px 0; font-size: 11px; font-weight: 700; color: #94a3b8;
 }
 .nav-btn span { font-size: 18px; }
 .nav-btn.active { color: var(--ink); }

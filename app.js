@@ -47,7 +47,14 @@ const TIERS = {
   1: { exact: 10, result: 5, label: "BIG 5" },
   2: { exact: 10, result: 5, label: "BIG 5 CLASH" },
 };
+/* Champions League games are FLAT: 5 for the exact score, 2 for the correct
+   result, whoever is playing. No Big 5 bonus — the whole competition is
+   already big. Any single UCL game can still be overridden by hand from
+   Manage → Points, exactly like an EPL one. */
+const UCL_TIER = { exact: 5, result: 2, label: "" };
+
 function tierOf(m) {
+  if (m && m.comp === "UCL") return UCL_TIER;
   const n = (isBig5(m && m.home_team) ? 1 : 0) + (isBig5(m && m.away_team) ? 1 : 0);
   return TIERS[n];
 }
@@ -74,10 +81,12 @@ function hasCustomPoints(m) {
   return p.exact !== t.exact || p.result !== t.result;
 }
 
-/* ---- competition (EPL only) ---- */
+/* ---- competitions ---- */
 const COMPS = {
-  EPL: { name: "Premier League", short: "EPL", logo: "🦁", weekWord: "Week" },
+  EPL: { name: "Premier League",  short: "EPL", logo: "🦁", weekWord: "Week" },
+  UCL: { name: "Champions League", short: "UCL", logo: "⚽", weekWord: "Matchday" },
 };
+const COMP_ORDER = ["EPL", "UCL"];
 
 /* ---- manage PIN ----
    Change the number below to update the PIN. */
@@ -238,38 +247,52 @@ function sectionsOf(list) {
 /* ---- week filter (Fixtures + Manage) ----
    The season is 38 weeks × 10 games, so screens show one week at a
    time. Default: the first week that still has an unfinished game. */
-let weekFilter = null; // null = auto, "all" = everything, or a week number
+/* Each competition keeps its OWN week choice, so flipping between the
+   EPL tab and the UCL tab doesn't drag one screen onto the other's week. */
+const weekFilters = { EPL: null, UCL: null }; // null = auto, "all", or a number
 
-function currentWeek() {
-  const open = matches.filter((m) => !m.finished);
-  if (open.length === 0) return matches.length ? Math.max(...matches.map((m) => m.week)) : 1;
+function compMatches(comp) {
+  return matches.filter((m) => m.comp === comp);
+}
+
+function currentWeek(comp) {
+  const mine = compMatches(comp);
+  const open = mine.filter((m) => !m.finished);
+  if (open.length === 0) return mine.length ? Math.max(...mine.map((m) => m.week)) : 1;
   return Math.min(...open.map((m) => m.week));
 }
 
-function activeWeek() {
-  return weekFilter === null ? currentWeek() : weekFilter;
+function activeWeek(comp) {
+  const f = weekFilters[comp];
+  return f === null || f === undefined ? currentWeek(comp) : f;
 }
 
-function visibleMatches() {
-  const w = activeWeek();
-  return w === "all" ? matches : matches.filter((m) => m.week === w);
+function visibleMatches(comp) {
+  const w = activeWeek(comp);
+  const mine = compMatches(comp);
+  return w === "all" ? mine : mine.filter((m) => m.week === w);
 }
 
-function weekSelectHTML() {
-  const w = activeWeek();
-  const maxWeek = matches.length ? Math.max(...matches.map((m) => m.week)) : 38;
-  let opts = `<option value="all" ${w === "all" ? "selected" : ""}>All weeks</option>`;
-  for (let n = 1; n <= maxWeek; n++) {
-    opts += `<option value="${n}" ${w === n ? "selected" : ""}>Week ${n}</option>`;
+function weekSelectHTML(comp) {
+  const c = COMPS[comp] || COMPS.EPL;
+  const word = c.weekWord;                       // "Week" or "Matchday"
+  const w = activeWeek(comp);
+  const mine = compMatches(comp);
+  const fallback = comp === "UCL" ? 8 : 38;
+  const maxWeek = mine.length ? Math.max(...mine.map((m) => m.week)) : fallback;
+  const minWeek = mine.length ? Math.min(...mine.map((m) => m.week)) : 1;
+  let opts = `<option value="all" ${w === "all" ? "selected" : ""}>All ${word.toLowerCase()}s</option>`;
+  for (let k = minWeek; k <= maxWeek; k++) {
+    opts += `<option value="${k}" ${w === k ? "selected" : ""}>${word} ${k}</option>`;
   }
   return `<div class="card weekbar">
-    <span class="weekbar-label">Gameweek</span>
-    <select class="select" style="margin:0;flex:1" onchange="setWeek(this.value)">${opts}</select>
+    <span class="weekbar-label">${comp === "UCL" ? "Matchday" : "Gameweek"}</span>
+    <select class="select" style="margin:0;flex:1" onchange="setWeek('${comp}', this.value)">${opts}</select>
   </div>`;
 }
 
-window.setWeek = (v) => {
-  weekFilter = v === "all" ? "all" : Math.max(1, Math.trunc(Number(v)) || 1);
+window.setWeek = (comp, v) => {
+  weekFilters[comp] = v === "all" ? "all" : Math.max(1, Math.trunc(Number(v)) || 1);
   render();
 };
 
@@ -356,9 +379,52 @@ async function seedIfNeeded() {
   await b.commit();
 }
 
+/* ---- Champions League: ADDITIVE seeding ----------------------------
+   Read this before changing anything here.
+
+   seedIfNeeded() above is destructive by design: if the stored
+   SEED_VERSION is behind, it WIPES every match and every prediction and
+   rewrites the EPL list. That is why SEED_VERSION stays at 2 forever
+   from here on — bumping it is the one thing that loses the season.
+
+   The UCL is added by this function instead. It has NO delete path at
+   all. It writes only match docs whose ID does not already exist, it
+   keeps its own version marker in meta/uclSeed (nothing to do with
+   meta/seed), and it never touches players, predictions, or any EPL
+   game. Running it twice does nothing the second time.
+   ------------------------------------------------------------------- */
+const UCL_SEED_VERSION = 1;
+
+async function seedUclIfNeeded() {
+  if (typeof UCL_FIXTURES === "undefined" || !UCL_FIXTURES.length) return;
+
+  const ref = dbf.collection("meta").doc("uclSeed");
+  const snap = await ref.get();
+  if (snap.exists && (snap.data().version || 0) >= UCL_SEED_VERSION) return;
+
+  // Never overwrite a doc that is already there — belt and braces on top
+  // of the reserved 1001+ ID range.
+  const existing = new Set();
+  const cur = await dbf.collection("matches").get();
+  cur.forEach((d) => existing.add(d.id));
+
+  const queue = UCL_FIXTURES.filter((f) => !existing.has(String(f.id)));
+  const added = queue.length;
+  while (queue.length) {
+    const b = dbf.batch();
+    for (const f of queue.splice(0, 400)) {
+      b.set(dbf.collection("matches").doc(String(f.id)),
+        { ...f, home_score: null, away_score: null, finished: false });
+    }
+    await b.commit();
+  }
+  await ref.set({ version: UCL_SEED_VERSION, added, at: new Date().toISOString() });
+}
+
 async function load() {
   if (!dbf) return;
   await seedIfNeeded();
+  await seedUclIfNeeded();
   const [pSnap, mSnap, prSnap, owSnap] = await Promise.all([
     dbf.collection("players").get(),
     dbf.collection("matches").get(),
@@ -385,7 +451,8 @@ function render() {
   if (keysMissing) { renderSetup(); return; }
   // the Table screen gets a black background; everything else stays white
   screen.classList.toggle("dark", tab === "leaderboard");
-  if (tab === "fixtures") renderFixtures();
+  if (tab === "fixtures") renderFixtures("EPL");
+  else if (tab === "ucl") renderFixtures("UCL");
   else if (tab === "leaderboard") renderLeaderboard();
   else if (tab === "stats") renderStats();
   else if (tab === "manage") {
@@ -483,7 +550,7 @@ function matchRowHTML(m) {
     ? ` · ${closed ? "closed" : "closes"} ${kickoffLabel(m.kickoff)}`
     : "";
 
-  const pill = `<span class="pill epl">${compOf(m).short}</span>`;
+  const pill = `<span class="pill ${m.comp === "UCL" ? "ucl" : "epl"}">${compOf(m).short}</span>`;
   const left = pill + " " + shortLabel(m) +
     (m.slot_label ? ` · ${esc(m.slot_label)}` : "") + kickoff;
 
@@ -517,9 +584,11 @@ function matchRowHTML(m) {
   </div>`;
 }
 
-function renderFixtures() {
-  document.getElementById("header-stage").textContent = "FIXTURES";
-  const sections = sectionsOf(visibleMatches());
+function renderFixtures(comp) {
+  document.getElementById("header-stage").textContent =
+    comp === "UCL" ? "CHAMPIONS LEAGUE" : "FIXTURES";
+  const sections = sectionsOf(visibleMatches(comp));
+  const word = comp === "UCL" ? "matchday" : "week";
 
   const body = sections.length
     ? sections
@@ -529,9 +598,15 @@ function renderFixtures() {
             s.list.map(matchRowHTML).join("")
         )
         .join("")
-    : `<p class="note">No games in this week — pick another week, or add games in Manage → Games.</p>`;
+    : `<p class="note">No games in this ${word} — pick another ${word}, or add games in Manage → Games.</p>`;
 
-  screen.innerHTML = playerBarHTML() + weekSelectHTML() + body;
+  const intro = comp === "UCL"
+    ? `<p class="note ucl-note">Champions League league phase. Every game is worth
+        <b>${UCL_TIER.exact} pts</b> for the exact score and <b>${UCL_TIER.result} pts</b>
+        for the correct result, and they all count towards the same Table as your EPL points.</p>`
+    : "";
+
+  screen.innerHTML = playerBarHTML() + weekSelectHTML(comp) + intro + body;
 }
 
 /* ---------------------------------------------------------------------
@@ -565,10 +640,15 @@ function buildLeaderboard() {
     if (s.kind === "exact") row.exact++;
     else if (s.kind === "result") row.results++;
 
-    const wk = m.comp + "|" + m.week;
-    let bucket = weekBuckets.get(wk);
-    if (!bucket) { bucket = new Map(); weekBuckets.set(wk, bucket); }
-    bucket.set(pr.player_id, (bucket.get(pr.player_id) || 0) + s.pts);
+    // "Weeks won" counts EPL gameweeks ONLY. UCL points are added to the
+    // total above like any other points — they just don't create extra
+    // weeks to win.
+    if (m.comp === "EPL") {
+      const wk = m.comp + "|" + m.week;
+      let bucket = weekBuckets.get(wk);
+      if (!bucket) { bucket = new Map(); weekBuckets.set(wk, bucket); }
+      bucket.set(pr.player_id, (bucket.get(pr.player_id) || 0) + s.pts);
+    }
   }
 
   // a "week win" = most points that week; ties are co-wins (all leaders get one)
@@ -610,6 +690,27 @@ function amharic(name) {
   return am ? ` (${am})` : "";
 }
 
+/* player name -> country flag, shown AFTER the Amharic parentheses.
+   Add new players here (match is case-insensitive on the English name). */
+const PLAYER_FLAGS = {
+  "dere":  "🇪🇹",
+  "dkc":   "🇪🇹",
+  "costa": "🇪🇹",
+  "mab":   "🇨🇳",
+  "solar": "🇺🇸",
+  "ermi":  "🇸🇪",
+  "ermo":  "🇸🇪",
+};
+function playerFlag(name) {
+  return PLAYER_FLAGS[String(name || "").trim().toLowerCase()] || "";
+}
+
+/* full display suffix: " (አማ) 🇪🇹" */
+function nameTag(name) {
+  const f = playerFlag(name);
+  return amharic(name) + (f ? ` ${f}` : "");
+}
+
 function renderLeaderboard() {
   document.getElementById("header-stage").textContent = "TABLE";
   const rows = buildLeaderboard();
@@ -624,7 +725,7 @@ function renderLeaderboard() {
       <div class="lb-rank ${i >= medals.length ? "num" : ""}" title="Rank ${i + 1}">${badge}</div>
       ${jerseyHTML(r.name)}
       <div class="lb-main">
-        <span class="lb-name">${esc(r.name)}${esc(amharic(r.name))}</span>
+        <span class="lb-name">${esc(r.name)}${esc(nameTag(r.name))}</span>
         <span class="lb-sub">${r.exact} exact · ${r.results} results · ${r.weeksWon} weeks won</span>
       </div>
       ${leader ? `<span class="lb-deco d1">🎉</span><span class="lb-deco d2">🎊</span><span class="lb-deco d3">✨</span><span class="lb-deco d4">🎈</span><span class="lb-king">👑</span>` : ""}
@@ -664,16 +765,20 @@ function renderLeaderboard() {
 let statsWeek = null;
 
 // every week that has at least one counted, finished game
+/* Opta Stats is an EPL-only screen — UCL has its own tab and its points
+   already flow into the Table. */
+const STATS_COMP = "EPL";
 function scoredWeeks() {
   const set = new Set();
   for (const m of matches) {
+    if (m.comp !== STATS_COMP) continue;
     if (m.finished && !isExcluded(m) && m.home_score != null && m.away_score != null) set.add(m.week);
   }
   return [...set].sort((a, b) => a - b);
 }
 function latestScoredWeek() {
   const ws = scoredWeeks();
-  return ws.length ? ws[ws.length - 1] : currentWeek();
+  return ws.length ? ws[ws.length - 1] : currentWeek(STATS_COMP);
 }
 function activeStatsWeek() {
   return statsWeek === null ? latestScoredWeek() : statsWeek;
@@ -685,7 +790,8 @@ window.setStatsWeek = (v) => {
 
 function statsWeekSelectHTML() {
   const w = activeStatsWeek();
-  const maxWeek = matches.length ? Math.max(...matches.map((m) => m.week)) : 38;
+  const epl = matches.filter((m) => m.comp === STATS_COMP);
+  const maxWeek = epl.length ? Math.max(...epl.map((m) => m.week)) : 38;
   const done = new Set(scoredWeeks());
   let opts = "";
   for (let n = 1; n <= maxWeek; n++) {
@@ -702,7 +808,7 @@ function statsWeekSelectHTML() {
 function buildWeekBoard(week) {
   const finished = new Map(
     matches
-      .filter((m) => m.week === week && m.finished && !isExcluded(m) &&
+      .filter((m) => m.comp === STATS_COMP && m.week === week && m.finished && !isExcluded(m) &&
         m.home_score != null && m.away_score != null)
       .map((m) => [m.id, m])
   );
@@ -768,7 +874,7 @@ function renderStats() {
       <div class="ow-body">
         ${winners.map((r) => jerseyHTML(r.name)).join("")}
         <div class="ow-main">
-          <div class="ow-name">${winners.map((r) => esc(r.name) + esc(amharic(r.name))).join(" & ")}</div>
+          <div class="ow-name">${winners.map((r) => esc(r.name) + esc(nameTag(r.name))).join(" & ")}</div>
           <div class="ow-sub">${sub}</div>
         </div>
         <div class="ow-pts">${top}<span>PTS</span></div>
@@ -791,7 +897,7 @@ function renderStats() {
         .filter(Boolean).join(" ");
       return `<tr class="${cls}">
         <td class="c-rank">${rank}</td>
-        <td class="c-name">${esc(r.name)}</td>
+        <td class="c-name">${esc(r.name)}${esc(playerFlag(r.name) ? " " + playerFlag(r.name) : "")}</td>
         <td class="c-e">${r.exact}</td>
         <td class="c-r">${r.results}</td>
         <td class="c-m">${miss}</td>
@@ -835,6 +941,22 @@ function renderStats() {
    ------------------------------------------------------------------- */
 let backfillPlayerId = null;
 
+/* Which competition the Manage screen is working on. EVERY manage tab —
+   results, deadlines, points, games, predictions — follows this switch, so
+   the UCL gets exactly the same control as the EPL. */
+let manageComp = "EPL";
+window.setManageComp = (c) => { manageComp = c; render(); };
+
+function manageCompSwitchHTML() {
+  return `<div class="compswitch">` + COMP_ORDER.map((c) => {
+    const on = manageComp === c;
+    const cnt = compMatches(c).length;
+    return `<button class="compbtn ${on ? "active " + c.toLowerCase() : ""}"
+      onclick="setManageComp('${c}')">${COMPS[c].logo} ${COMPS[c].short}
+      <span class="compbtn-n">${cnt}</span></button>`;
+  }).join("") + `</div>`;
+}
+
 function renderManage() {
   document.getElementById("header-stage").textContent = "MANAGE";
   if (!backfillPlayerId && players[0]) backfillPlayerId = players[0].id;
@@ -847,10 +969,11 @@ function renderManage() {
       <button class="tab ${manageTab === "games" ? "active" : ""}" onclick="setManageTab('games')">Games</button>
       <button class="tab ${manageTab === "backfill" ? "active" : ""}" onclick="setManageTab('backfill')">Predictions</button>
       <button class="tab ${manageTab === "players" ? "active" : ""}" onclick="setManageTab('players')">Players</button>
+      <button class="tab ${manageTab === "backup" ? "active" : ""}" onclick="setManageTab('backup')">Backup</button>
     </div>`;
 
   let body = "";
-  const playable = visibleMatches().filter((m) => m.home_team !== "TBD" && m.away_team !== "TBD");
+  const playable = visibleMatches(manageComp).filter((m) => m.home_team !== "TBD" && m.away_team !== "TBD");
 
   if (manageTab === "results") {
     body =
@@ -866,6 +989,8 @@ function renderManage() {
     body = gamesBody();
   } else if (manageTab === "players") {
     body = playersBody();
+  } else if (manageTab === "backup") {
+    body = backupBody();
   } else {
     // switched-off players stay in this list so you can still fix their
     // history; they're just flagged
@@ -883,7 +1008,13 @@ function renderManage() {
       <div class="big-title" style="font-size:22px;margin:0">Manage</div>
       <button class="btn ghost sm" onclick="lockManage()">🔒 Lock</button>
     </div>
-    ${manageTab === "players" ? "" : weekSelectHTML()}${tabs}${body}`;
+    ${manageTab === "players" || manageTab === "backup"
+        ? "" : manageCompSwitchHTML() + weekSelectHTML(manageComp)}${tabs}${body}`;
+}
+
+// "Week" for the EPL, "Matchday" for the UCL — used in confirm dialogs
+function wkWord(comp) {
+  return (COMPS[comp] || COMPS.EPL).weekWord;
 }
 
 function manageLabel(m) {
@@ -954,6 +1085,26 @@ function deadlineRowHTML(m) {
    player sees them on the fixture card while they are predicting.
    A game with nothing set is worth the defaults (20 / 15). ---- */
 function pointsBody(playable) {
+  if (manageComp === "UCL") {
+    return `<p class="note">Every Champions League game defaults to <b>${UCL_TIER.exact}</b> for the exact score and <b>${UCL_TIER.result}</b> for the correct result — flat, no Big 5 bonus. Override any single game below; <b>Reset</b> puts it back to ${UCL_TIER.exact}/${UCL_TIER.result}. Changing points on a game that is already scored re-calculates the Table.</p>` +
+      sectionsOf(playable)
+        .map((s) => {
+          const bulk = `<div class="card">
+            <div class="row-label">Apply to every game in ${esc(s.title)}</div>
+            <div class="row-mini">
+              <span class="muted" style="font-size:12px">Exact</span>
+              <input type="number" min="0" max="999" id="bpe-${s.comp}-${s.week}" placeholder="exact" style="width:56px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
+              <span class="muted" style="font-size:12px">Result</span>
+              <input type="number" min="0" max="999" id="bpr-${s.comp}-${s.week}" placeholder="result" style="width:56px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
+              <button class="btn sm grow" onclick="setWeekPoints('${s.comp}', ${s.week})">Apply to all</button>
+              <button class="btn ghost sm" onclick="resetWeekPoints('${s.comp}', ${s.week})">Reset</button>
+            </div>
+          </div>`;
+          return `<div class="section-title">${s.title}</div>` + bulk +
+            s.list.map(pointsRowHTML).join("");
+        })
+        .join("");
+  }
   return `<p class="note">Points are worked out automatically from who is playing: <b>${TIERS[0].exact}/${TIERS[0].result}</b> for a normal game, <b>${TIERS[1].exact}/${TIERS[1].result}</b> when a Big 5 side (Arsenal, Liverpool, Man Utd, Man City, Chelsea) is involved, <b>${TIERS[2].exact}/${TIERS[2].result}</b> when two Big 5 sides meet — shown as <i>exact / result</i>. Every player sees the value on the fixture card while they predict. Override any single game below; <b>Reset</b> puts it back on its tier. Changing points on a game that is already scored re-calculates the leaderboard.</p>` +
     sectionsOf(playable)
       .map((s) => {
@@ -993,15 +1144,18 @@ function pointsRowHTML(m) {
 
 /* ---- Games tab: edit / move / delete any game, or add extra ones ---- */
 function gamesBody() {
-  const w = activeWeek();
-  const defWeek = w === "all" ? 1 : w;
+  const comp = manageComp;
+  const c = COMPS[comp];
+  const w = activeWeek(comp);
+  const defWeek = w === "all" ? (comp === "UCL" ? 2 : 1) : w;
+  const total = compMatches(comp).length;
   const addForm = `
-    <p class="note">All 380 games are pre-loaded. Move a game to a different week by changing its week number and hitting Save; delete a game with 🗑. You can also add an extra game below — set the badge emojis (optional), teams, week number, and an optional kickoff/deadline.</p>
+    <p class="note">Working on <b>${c.name}</b> — ${total} game${total === 1 ? "" : "s"} loaded. Move a game to a different ${c.weekWord.toLowerCase()} by changing its number and hitting Save; delete a game with 🗑. You can also add an extra game below — set the badge emojis (optional), teams, ${c.weekWord.toLowerCase()} number, and an optional kickoff/deadline. New games are added to <b>${c.short}</b>.</p>
     <div class="card">
       <div class="row-label">Add a game</div>
       <div class="add-grid">
-        <span class="muted" style="align-self:center;font-size:12px;font-weight:700">Week #</span>
-        <input type="number" min="1" max="99" id="ag-week" value="${defWeek}" placeholder="Week #" title="Week number">
+        <span class="muted" style="align-self:center;font-size:12px;font-weight:700">${c.weekWord} #</span>
+        <input type="number" min="1" max="99" id="ag-week" value="${defWeek}" placeholder="${c.weekWord} #" title="${c.weekWord} number">
       </div>
       <div class="ko-grid" style="margin-top:6px">
         <input class="flag" id="ag-hf" placeholder="🔴">
@@ -1013,7 +1167,7 @@ function gamesBody() {
       <button class="btn block sm" style="margin-top:8px" onclick="addGame()">+ Add game</button>
     </div>`;
 
-  const list = sectionsOf(visibleMatches())
+  const list = sectionsOf(visibleMatches(comp))
     .map(
       (s) =>
         `<div class="section-title">${s.title}</div>` +
@@ -1036,7 +1190,7 @@ function gameEditRowHTML(m) {
       <input id="eat-${m.id}" value="${at}" placeholder="Away team">
     </div>
     <div class="row-mini" style="margin-top:8px">
-      <span class="muted" style="font-size:12px">Wk</span>
+      <span class="muted" style="font-size:12px">${m.comp === "UCL" ? "MD" : "Wk"}</span>
       <input type="number" min="1" max="99" id="ew-${m.id}" value="${m.week}" style="width:52px;height:34px;text-align:center;border:1px solid var(--line);border-radius:8px;font-weight:700">
       <button class="btn sm grow" onclick="saveGame(${m.id})">Save</button>
       <button class="btn ghost sm" onclick="deleteGame(${m.id})">🗑 Delete</button>
@@ -1085,7 +1239,7 @@ function playersBody() {
         <div class="row-mini">
           ${jerseyHTML(p.name)}
           <div class="grow">
-            <div style="font-weight:700;font-size:15px">${esc(p.name)}${esc(amharic(p.name))}</div>
+            <div style="font-weight:700;font-size:15px">${esc(p.name)}${esc(nameTag(p.name))}</div>
             <div class="muted" style="font-size:12px">
               ${active ? "Predicting · on the Table" : "Switched off · hidden from the Table"}
               · ${t.points} pts · ${t.picks} pick${t.picks === 1 ? "" : "s"} saved
@@ -1101,6 +1255,94 @@ function playersBody() {
     <p class="note"><b>${on}</b> predicting · <b>${off}</b> switched off</p>
     ${players.length ? rows : `<p class="note">No players yet.</p>`}`;
 }
+
+/* ---------------------------------------------------------------------
+   BACKUP — download everything as one JSON file, and put it back if you
+   ever need to. Restore only ever WRITES; it never deletes a thing.
+   ------------------------------------------------------------------- */
+function backupBody() {
+  const preds = predictions.length;
+  const done = matches.filter((m) => m.finished).length;
+  const perComp = COMP_ORDER
+    .map((c) => `<b>${compMatches(c).length}</b> ${COMPS[c].short}`)
+    .join(" · ");
+  return `<p class="note">Download a full copy of the pool — every player, every game, every prediction — as a single JSON file. Do this before any upgrade and you can always get back to exactly this moment.</p>
+    <div class="card">
+      <div class="row-label">What's in the database right now</div>
+      <div style="font-size:14px;font-weight:600;line-height:1.7">
+        ${perComp} games · <b>${done}</b> with results<br>
+        <b>${players.length}</b> players · <b>${preds}</b> predictions saved
+      </div>
+      <button class="btn block sm" style="margin-top:10px" onclick="downloadBackup()">⬇︎ Download backup</button>
+    </div>
+    <div class="card">
+      <div class="row-label">Restore from a backup file</div>
+      <p class="note" style="margin:0 0 8px">Puts players, predictions and results back from a file you downloaded earlier. It only writes — nothing already in the database is deleted, so a restore can't make things worse.</p>
+      <input type="file" id="restore-file" accept="application/json,.json" style="width:100%;font-size:13px">
+      <button class="btn block sm ghost" style="margin-top:8px" onclick="restoreBackup()">⬆︎ Restore</button>
+      <p id="restore-msg" class="note" style="margin:8px 0 0"></p>
+    </div>`;
+}
+
+window.downloadBackup = () => {
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
+  const payload = {
+    app: "EPL-UCL-Predictor", version: 10, exported_at: new Date().toISOString(),
+    players, matches, predictions, openWeeks: [...openWeeks],
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `epl-ucl-backup-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+window.restoreBackup = async () => {
+  const msg = document.getElementById("restore-msg");
+  const file = document.getElementById("restore-file").files[0];
+  if (!file) { msg.textContent = "Pick a backup file first."; return; }
+  let data;
+  try {
+    data = JSON.parse(await file.text());
+  } catch (e) { msg.textContent = "That file isn't valid JSON."; return; }
+  if (!data || !Array.isArray(data.matches) || !Array.isArray(data.predictions)) {
+    msg.textContent = "That doesn't look like a backup from this app.";
+    return;
+  }
+  const when = data.exported_at ? new Date(data.exported_at).toLocaleString() : "unknown date";
+  if (!confirm(`Restore ${data.predictions.length} predictions and ${data.matches.length} games from the backup taken ${when}? Nothing will be deleted.`)) return;
+
+  msg.textContent = "Restoring…";
+  try {
+    const writes = [];
+    for (const p of data.players || []) {
+      if (!p || !p.id) continue;
+      writes.push([dbf.collection("players").doc(p.id), { name: p.name, active: p.active !== false }, true]);
+    }
+    for (const m of data.matches) {
+      if (!m || m.id === undefined) continue;
+      writes.push([dbf.collection("matches").doc(String(m.id)), m, false]);
+    }
+    for (const pr of data.predictions) {
+      if (!pr || !pr.player_id || pr.match_id === undefined) continue;
+      writes.push([dbf.collection("predictions").doc(`${pr.player_id}_${pr.match_id}`), pr, false]);
+    }
+    while (writes.length) {
+      const b = dbf.batch();
+      for (const [ref, val, merge] of writes.splice(0, 400)) b.set(ref, val, { merge: !!merge });
+      await b.commit();
+    }
+    if (Array.isArray(data.openWeeks)) {
+      await dbf.collection("meta").doc("openWeeks").set({ keys: data.openWeeks });
+    }
+    msg.textContent = "Restored ✓";
+    await refresh();
+  } catch (e) { msg.textContent = "Restore failed: " + e.message; }
+};
 
 function backfillRowHTML(m) {
   const mine = predictions.find((p) => p.player_id === backfillPlayerId && p.match_id === m.id);
@@ -1226,7 +1468,7 @@ window.setWeekPoints = async (comp, week) => {
     (m) => m.comp === comp && m.week === week && m.home_team !== "TBD" && m.away_team !== "TBD"
   );
   if (!targets.length) return;
-  if (!confirm(`Set all ${targets.length} game(s) in Week ${week} to ${e} exact / ${r} result?`)) return;
+  if (!confirm(`Set all ${targets.length} game(s) in ${wkWord(comp)} ${week} to ${e} exact / ${r} result?`)) return;
   try {
     const batch = dbf.batch();
     for (const m of targets) {
@@ -1242,7 +1484,7 @@ window.resetWeekPoints = async (comp, week) => {
     (m) => m.comp === comp && m.week === week && m.home_team !== "TBD" && m.away_team !== "TBD"
   );
   if (!targets.length) return;
-  if (!confirm(`Reset all ${targets.length} game(s) in Week ${week} back to their automatic Big 5 tier value?`)) return;
+  if (!confirm(`Reset all ${targets.length} game(s) in ${wkWord(comp)} ${week} back to the default value for that competition?`)) return;
   try {
     const batch = dbf.batch();
     for (const m of targets) {
@@ -1283,10 +1525,10 @@ window.toggleWeekOpen = async (comp, week) => {
   const key = weekKey(comp, week);
   const next = new Set(openWeeks);
   if (next.has(key)) {
-    if (!confirm(`Close Week ${week} for predictions? Players won't be able to enter picks.`)) return;
+    if (!confirm(`Close ${wkWord(comp)} ${week} for predictions? Players won't be able to enter picks.`)) return;
     next.delete(key);
   } else {
-    if (!confirm(`Open Week ${week} for predictions? Players will be able to enter picks.`)) return;
+    if (!confirm(`Open ${wkWord(comp)} ${week} for predictions? Players will be able to enter picks.`)) return;
     next.add(key);
   }
   try {
@@ -1303,7 +1545,7 @@ window.closeWeek = async (comp, week) => {
       m.home_team !== "TBD" && m.away_team !== "TBD" && !m.finished && !isClosed(m)
   );
   if (targets.length === 0) return;
-  if (!confirm(`Close picks for ${targets.length} game(s) now? Players won't be able to add predictions for them.`)) return;
+  if (!confirm(`Close picks for ${targets.length} ${COMPS[comp].short} game(s) in ${wkWord(comp)} ${week} now? Players won't be able to add predictions for them.`)) return;
   try {
     const batch = dbf.batch();
     for (const m of targets) batch.update(dbf.collection("matches").doc(String(m.id)), { kickoff: now });
@@ -1314,7 +1556,7 @@ window.closeWeek = async (comp, week) => {
 
 // ---- Games: add / edit / delete ----
 window.addGame = async () => {
-  const comp = "EPL";
+  const comp = manageComp;
   const week = Math.max(1, Math.trunc(Number(document.getElementById("ag-week").value)) || 1);
   const homeTeam = document.getElementById("ag-ht").value.trim() || "TBD";
   const awayTeam = document.getElementById("ag-at").value.trim() || "TBD";
@@ -1323,8 +1565,12 @@ window.addGame = async () => {
   const koVal = document.getElementById("ag-ko").value;
   const kickoff = koVal ? new Date(koVal).toISOString() : null;
 
-  const id = matches.reduce((mx, m) => Math.max(mx, Number(m.id) || 0), 0) + 1;
-  const ordering = matches.reduce((mx, m) => Math.max(mx, Number(m.ordering) || 0), -1) + 1;
+  /* Keep each competition inside its own ID block so a new UCL game can
+     never land on top of an EPL one (EPL 1-999, UCL 1001+). */
+  const base = comp === "UCL" ? UCL_ID_BASE : 0;
+  const mine = matches.filter((m) => m.comp === comp);
+  const id = mine.reduce((mx, m) => Math.max(mx, Number(m.id) || 0), base) + 1;
+  const ordering = mine.reduce((mx, m) => Math.max(mx, Number(m.ordering) || 0), base) + 1;
 
   try {
     await dbf.collection("matches").doc(String(id)).set({
