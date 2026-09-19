@@ -90,7 +90,7 @@ const COMP_ORDER = ["EPL", "UCL"];
 
 /* ---- manage PIN ----
    Change the number below to update the PIN. */
-const MANAGE_PIN = "1122";
+const MANAGE_PIN = "5678";
 let manageUnlocked = false;
 
 /* ---- frozen games ----
